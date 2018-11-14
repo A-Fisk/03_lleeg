@@ -31,7 +31,6 @@ key = list(file_list.keys())[0]
 
 file_list = file_dict[key]
 
-
 # sleep_stages = ["R","NR","NR1","R1"]
 #
 # df_dict = {}

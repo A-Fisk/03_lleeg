@@ -17,14 +17,21 @@ clean_object = prep.SaveObjectPipeline(input_directory=input_directory,
                                        save_directory=save_directory,
                                        search_suffix=".txt",
                                        readfile=False)
-save_dir_path = prep.create_subdir(save_directory,subdir_name)
-kwargs = {"save_dir_path":save_dir_path,
-          "save_suffix_file":"_clean.csv"}
+
+kwargs = {
+      "save_suffix_file":"_clean.csv",
+      "savecsv":True,
+      "object_list":clean_object.file_list,
+      "header":17,
+      "derivation_list":["fro", "occ", "foc"],
+      "der_label":"Derivation",
+      "time_index_column":(2),
+      "test_index_range":[0,1,2,-2,-1]
+  }
+
 clean_object.process_file(module=prep,
-                          function_name="remove_header_and_save",
+                          function_name="read_clean_fft_file",
                           subdir_name=subdir_name,
-                          savecsv=False,
-                          object_list=clean_object.file_list,
                           **kwargs)
 
 
