@@ -10,7 +10,7 @@ sns.set()
 
 # define import dir
 input_dir = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/01_projects"
-                         "/P3_LLEEG_Chapter3/01_data_files/08_stage_df")
+                         "/P3_LLEEG_Chapter3/01_data_files/08_stage_csv")
 save_dir = input_dir.parents[1] / "03_analysis_outputs/02_cumulative_plots"
 subdir_name = "01_cumulative_sleep"
 

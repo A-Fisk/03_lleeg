@@ -11,12 +11,13 @@ input_dir = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/"
                                "06_fft_files")
                               
 save_dir = input_dir.parent
-subdir_name = "07_clean_fft"
+subdir_name = "07_clean_fft_files"
 
 clean_object = prep.SaveObjectPipeline(input_directory=input_dir,
                                       save_directory=save_dir,
                                       search_suffix=".txt",
-                                      readfile=False)
+                                      readfile=False,
+                                      subdir_name=subdir_name)
 
 animal_file_list = prep.create_dict_of_animal_lists(clean_object.file_list,
                                                     input_dir,
@@ -26,7 +27,6 @@ kwargs = {
     "save_suffix_file":"_clean.csv",
     "savecsv":True,
     "function":(prep, "single_df_for_animal"),
-    "subdir_name":subdir_name,
     "object_list":animal_file_list.values(),
     "file_list":animal_file_list.keys(),
     "header":17,
