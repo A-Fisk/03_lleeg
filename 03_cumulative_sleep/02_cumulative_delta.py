@@ -1,9 +1,6 @@
 # script to run to check remove header working as expected
 import pathlib
 import sys
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import numpy as np
 sys.path.insert(0, "/Users/angusfisk/Documents/01_PhD_files/"
                    "07_python_package/sleepPy")
 import sleepPy.preprocessing as prep
@@ -13,52 +10,66 @@ sns.set()
 
 # define import dir
 input_dir = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/01_projects"
-                         "/P3_LLEEG_Chapter3/01_data_files/07_clean_fft"
-                         "/01_reindexed")
+                         "/P3_LLEEG_Chapter3/01_data_files/07_clean_fft_files/")
+save_dir = input_dir.parents[1]
+subdir_name = "03_analysis_outputs/02_cumulative_plots/02_cumulative_delta"
 
-# file_list = sorted(input_dir.glob("*.csv"))
+der_names = ["fro", "occ", "foc"]
+subdir_list = []
+for der in der_names:
+    temp_name = subdir_name + "/" + der
+    subdir_list.append(temp_name)
 
-kwargs = {"index_col":0,
-          "header":0,
-          "check_cols":False,
-          "rename_cols":False,
-          "drop_cols":False}
+init_kwargs = {
+    "input_directory": input_dir,
+    "save_directory": save_dir,
+    "subdir_name": subdir_name,
+    "func": (prep, "read_file_to_df"),
+    "search_suffix": ".csv",
+    "readfile": True,
+    "index_col": [0, 1, 2],
+    "header": [0]
+}
+delta_create_object = prep.SaveObjectPipeline(**init_kwargs)
 
-file_dict = prep.get_all_files_per_animal(input_dir,
-                                          single_der=False)
+delta_process_kwargs = {
+    "function": (prep, "create_df_for_single_band"),
+    "savecsv": False,
+    "name_of_band": ["Delta"],
+    "range_to_sum": ("0.50Hz", "4.00Hz")
+}
+delta_create_object.process_file(**delta_process_kwargs)
 
-key = list(file_list.keys())[0]
 
-file_list = file_dict[key]
+for der_no, subdir in enumerate(subdir_list):
+    init_kwargs["subdir_name"] = subdir
+    cumsum_plot_object = prep.SaveObjectPipeline(**init_kwargs)
+    process_kwargs = {
+        "function": (prep, "create_stage_df"),
+        "savecsv": False,
+        "object_list": delta_create_object.processed_list,
+        "stage_col": "Delta",
+        "stages": ["NR", "R"],
+        "remove_artefacts": True,
+        "other": 0,
+        "der_no": der_no,
+    }
+    cumsum_plot_object.process_file(**process_kwargs)
 
-# sleep_stages = ["R","NR","NR1","R1"]
-#
-# df_dict = {}
-#
-# for file in file_list:
-#     df = prep.read_file_to_df(file,
-#                               **kwargs)
-#
-#     filter = df.iloc[:,0].isin(sleep_stages)
-#     df_filt = df.where(filter)
-#
-#     delta_power = prep.create_df_for_single_band(df_filt,
-#                                                  ["Delta"],
-#                                                  ("0.50Hz", "4.00Hz"))
-#
-#     delta_cumsum = delta_power.iloc[:,0].cumsum()
-#     df_dict[file] = delta_cumsum
-#
-# day_one = df_dict[file_list[9]]
-# day_two = df_dict[file_list[3]]
-# day_three = df_dict[file_list[12]]
-#
-# fig, ax = plt.subplots()
-#
-#
-# #
-# # ax.plot(day_one, "b", label=file_list[9].stem)
-# # # ax.plot(day_two, "g", label=file_list[3].stem)
-# # ax.plot(day_three, "r", label=file_list[12].stem)
-#
-# fig.legend()
+    plot_kwargs = {
+        "function": (plot, "plot_cumulative_from_stage_df"),
+        "data_list": cumsum_plot_object.processed_list,
+        "remove_col": False,
+        "base_freq": "4S",
+        "target_freq": "1H",
+        "showfig": False,
+        "savefig": True,
+        "legend_loc": "center right",
+        "figsize": (10, 10),
+        "scored": False,
+        "ylabel": "Cumulative Delta Power during sleep",
+        "remove_stages": True,
+        "set_file_title": False,
+        "set_name_title": True
+    }
+    cumsum_plot_object.create_plot(**plot_kwargs)

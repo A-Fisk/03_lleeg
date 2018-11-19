@@ -24,19 +24,18 @@ animal_file_list = prep.create_dict_of_animal_lists(clean_object.file_list,
                                                     anim_range=(0,3))
                                                     
 kwargs = {
-    "save_suffix_file":"_clean.csv",
-    "savecsv":True,
-    "function":(prep, "single_df_for_animal"),
-    "object_list":animal_file_list.values(),
-    "file_list":animal_file_list.keys(),
-    "header":17,
-    "derivation_list":["fro", "occ", "foc"],
-    "der_label":"Derivation",
-    "time_index_column":(2),
-    "test_index_range":[0,1,2,-2,-1],
-    "period_label":"Light_period",
-    "anim_range":(0,3),
-    "day_range":(-6)
+    "save_suffix_file": "_clean.csv",
+    "savecsv": True,
+    "function": (prep, "single_df_for_animal"),
+    "object_list": animal_file_list.values(),
+    "file_list": animal_file_list.keys(),
+    "header": 17,
+    "derivation_list": ["fro", "occ", "foc"],
+    "der_label": "Derivation",
+    "time_index_column": (2),
+    "test_index_range": [0,1,2,-2,-1],
+    "period_label": "Light_period",
+    "anim_range": (0,3),
+    "day_range": (-6)
 }
-
 clean_object.process_file(**kwargs)
