@@ -23,12 +23,16 @@ df_list = [prep.read_file_to_df(x, **read_kwargs)
            for x in file_list]
 
 # Step two: Count the sleep
-stage_list = ["NR", "N1", "R", "R1"]
-sleep_count_df = prep._sum_dataframe(data_list=df_list,
-                                     stage_list=stage_list)
+stage_list = ["W", "W1"]
+sleep_dict = {}
+for df in df_list:
+    name = df.name
+    value = df.isin(stage_list).sum()
+    sleep_dict[name] = value
+sleep_count_df = pd.concat(sleep_dict).unstack()
 
 ### HACK AS HAVEN'T FINISHED SCORING
-sleep_count_df.iloc[4, -1] = 12000
+sleep_count_df.iloc[4, -1] = 9500
 
 # Step three: convert to hours
 sleep_hours = prep.convert_to_units(sleep_count_df,
@@ -36,40 +40,32 @@ sleep_hours = prep.convert_to_units(sleep_count_df,
                                     target_freq="1H")
 
 # Step four: Plot as a scatter/box plot
-fig, ax = plot._total_plot(sleep_hours,
-                           figsize=(10,10))
+fig, ax = plt.subplots()
+
+sns.swarmplot(data=sleep_hours, color='k', ax=ax)
+sns.boxplot(data=sleep_hours, ax=ax, fliersize=0)
+
+# set the labels
+fig.text(0.05,
+        0.5,
+        "total wake in hours",
+        ha="center",
+        va="center",
+        rotation='vertical')
+fig.text(0.5,
+         0.03,
+         "Experimental Day",
+         ha='center',
+         va='center')
+fig.suptitle("Amount of wake per day")
+
+# set size for saving
+fig.set_size_inches((10,10))
 
 # save the damn figure!
 save_dir = pathlib.Path('/Users/angusfisk/Documents/01_PhD_files/01_projects/'
                         'P3_LLEEG_Chapter3/03_analysis_outputs/04_amount_sleep')
-save_plot = save_dir / "01_total_sleep.png"
+save_plot = save_dir / "04_wake.png"
 plt.savefig(save_plot)
-
-
-dark = [x.between_time("00:00:00", "12:00:00") for x in df_list]
-light = [x.between_time("12:00:00", "00:00:00") for x in df_list]
-for dark_df, light_df, df in zip(dark, light, df_list):
-    name = df.name
-    dark_df.name = name
-    light_df.name = name
-    
-time_of_day_dict = {}
-time_of_day_dict["dark"] = prep._sum_dataframe(dark, stage_list)
-time_of_day_dict["light"] = prep._sum_dataframe(light, stage_list)
-
-time_of_day_df = pd.concat(time_of_day_dict)
-
-# convert to long form data
-data = time_of_day_df.stack().reset_index()
-
-fig, ax = plt.subplots()
-
-sns.swarmplot(data=data, x='level_2', y=0, hue="level_0", ax=ax,
-              color='0.2', dodge=True)
-sns.boxplot(data=data, x='level_2', y=0, hue="level_0", ax=ax,
-            fliersize=0)
-
-plot._total_plot(time_of_day_df)
-
 
 
