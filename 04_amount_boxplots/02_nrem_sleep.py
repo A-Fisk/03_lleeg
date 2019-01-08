@@ -14,7 +14,7 @@ sns.set()
 # Step one, get the data ready
 # import the files into a list
 input_dir = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/01_projects"
-                        "/P3_LLEEG_Chapter3/01_data_files/08_stage_csv")
+                        "/01_thesisdata/03_lleeg/01_data_files/08_stage_csv")
 file_list = sorted(input_dir.glob("*.csv"))
 
 read_kwargs = {"index_col": [0],
@@ -22,50 +22,42 @@ read_kwargs = {"index_col": [0],
 df_list = [prep.read_file_to_df(x, **read_kwargs)
            for x in file_list]
 
-# Step two: Count the sleep
+# Define the variables that will change
 stage_list = ["NR", "N1"]
-sleep_dict = {}
-for df in df_list:
-    name = df.name
-    value = df.isin(stage_list).sum()
-    sleep_dict[name] = value
-sleep_count_df = pd.concat(sleep_dict).unstack()
+label = "nrem sleep time, hours"
+title = "NREM sleep per day"
+save_name = "02_nrem_sleep.png"
+
+# Step two: Count the sleep
+sleep_count_df = prep.lightdark_df(df_list=df_list,
+                                   stage_list=stage_list)
 
 ### HACK AS HAVEN'T FINISHED SCORING
-sleep_count_df.iloc[4, -1] = 12000
+# sleep_count_df.iloc[4, -1] = 12000
 
 # Step three: convert to hours
 sleep_hours = prep.convert_to_units(sleep_count_df,
                                     base_freq= "4S",
                                     target_freq="1H")
+# convert to long form data
+data = sleep_hours.stack().reset_index()
+x = "Experimental_day"
+y = label
+hue = "Light"
+cols = [hue, "Animal", x, label]
+data.columns = cols
 
 # Step four: Plot as a scatter/box plot
-fig, ax = plt.subplots()
-
-sns.swarmplot(data=sleep_hours, color='k', ax=ax)
-sns.boxplot(data=sleep_hours, ax=ax, fliersize=0)
-
-# set the labels
-fig.text(0.05,
-        0.5,
-        "nrem sleep in hours",
-        ha="center",
-        va="center",
-        rotation='vertical')
-fig.text(0.5,
-         0.03,
-         "Experimental Day",
-         ha='center',
-         va='center')
-fig.suptitle("Amount of sleep per day")
-
-# set size for saving
-fig.set_size_inches((10,10))
+fig, ax = plot.dark_light_plot(data,
+                               x=x, y=y, hue=hue,
+                               figsize=(10,10),
+                               title=title)
 
 # save the damn figure!
 save_dir = pathlib.Path('/Users/angusfisk/Documents/01_PhD_files/01_projects/'
-                        'P3_LLEEG_Chapter3/03_analysis_outputs/04_amount_sleep')
-save_plot = save_dir / "02_nrem_sleep.png"
+                        '01_thesisdata/03_lleeg/03_analysis_outputs'
+                        '/04_amounts')
+save_plot = save_dir / save_name
 plt.savefig(save_plot)
 
 
