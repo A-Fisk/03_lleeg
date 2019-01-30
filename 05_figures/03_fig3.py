@@ -107,6 +107,7 @@ nrem_delta_mean_df.columns = hourly_columns
 fig = plt.figure()
 
 xfmt = mdates.DateFormatter("%H:%M:%S")
+capsize = 5
 
 # Plot LHS sleep time course
 left_col = gs.GridSpec(nrows=1, ncols=1, figure=fig,
@@ -127,16 +128,24 @@ for day in days:
     hourly_sleep_axis.errorbar(mean_data.index, mean_data.values,
                                yerr=sem_data,
                                marker='o',
-                               label=day)
+                               label=day,
+                               capsize=capsize)
 
     # set the xlimits
     xmin = "2018-01-01 00:00:00"
-    xmax = "2018-01-01 23:59:59"
+    xmax = "2018-01-02 00:00:00"
     # set the ylabel
     hourly_ylabel = "Proportion of sleep per hour"
     # set the title
     hourly_title = "Proportion of sleep per hour in constant light"
+    # set ylims
+    ymin = 0
+    ymax = 1
+    # set the xlabel
+    xlabel = "Time of day, ZT hours"
     hourly_sleep_axis.set(xlim=[xmin, xmax],
+                          xlabel=xlabel,
+                          ylim=[ymin, ymax],
                           ylabel=hourly_ylabel,
                           title=hourly_title)
     
@@ -148,11 +157,11 @@ for day in days:
                                       rotation=30, ha='right')
     hourly_sleep_axis.xaxis.set_major_formatter(xfmt)
     
-dark_index = curr_day.between_time("12:00:00", "23:59:00").index
-alpha=0.5
+dark_index = curr_day.loc["2018-01-01 12:00:00":"2018-01-02 00:00:00"].index
+alpha=0.1
+hourly_sleep_axis.axvline("2018-01-01 12:00:00", color='k')
 hourly_sleep_axis.fill_between(dark_index, 1, 0,
-                     facecolors='k', alpha=alpha)
- 
+                               facecolors='k', alpha=alpha)
     
 # Plot RHS cumulative sleep and delta
 
@@ -175,14 +184,18 @@ for day in days:
     
     # plot with error bars
     top_ax.errorbar(mean_nrem.index, mean_nrem.values,
-                    yerr=sem_nrem, marker='o', label=day)
+                    yerr=sem_nrem, marker='o', label=day,
+                    capsize=capsize)
     
     # set xlimits
     # set ylabel
     nrem_ylabel = "Cumulative hours of NREM sleep"
     # set the title
     nrem_title = "Cumuative NREM sleep in constant light"
+    # set ylims
+    top_ymin, top_ymax = 0, 12
     top_ax.set(xlim=[xmin, xmax],
+               ylim=[top_ymin, top_ymax],
                ylabel=nrem_ylabel,
                title=nrem_title)
     
@@ -191,12 +204,13 @@ for day in days:
     
     # pretty times
     top_ax.set_xticklabels(top_ax.get_xticklabels(),
-                           rotation=30, ha='right')
+                           visible=False)
     top_ax.xaxis.set_major_formatter(xfmt)
 
 # oclour in dark
+top_ax.axvline("2018-01-01 12:00:00", color='k')
 top_ax.fill_between(dark_index, 15, 0, facecolor='k', alpha=alpha)
-    
+
 # bottom plot do delta
 for day in days:
     # select the data
@@ -206,14 +220,20 @@ for day in days:
     sem_delta = delta_day["SEM"]
     
     bottom_ax.errorbar(mean_delta.index, mean_delta.values,
-                       yerr=sem_delta, marker='o', label=day)
+                       yerr=sem_delta, marker='o', label=day,
+                       capsize=capsize)
     
     # set the limits
     # set the ylabel
     delta_ylabel = "Cumulative Delta Power during NREM sleep"
     # set the title
     delta_title = "Cumuative Delta power in constant light"
+    # set ylims
+    bottom_ymin = 0
+    bottom_ymax = 4.5e7
     bottom_ax.set(xlim=[xmin, xmax],
+                  xlabel=xlabel,
+                  ylim=[bottom_ymin, bottom_ymax],
                   ylabel=delta_ylabel,
                   title=delta_title)
     
@@ -222,7 +242,13 @@ for day in days:
     bottom_ax.xaxis.set_major_formatter(xfmt)
 
 delta_maxdouble = nrem_delta_mean_df.max()[0] * 1.5
+bottom_ax.axvline("2018-01-01 12:00:00", color='k')
 bottom_ax.fill_between(dark_index, delta_maxdouble, 0,
                        facecolor='k', alpha=alpha)
+fig.suptitle("Constant light increases sleep")
+
+fig.set_size_inches(11.69, 8.27)
+
+plt.savefig(SAVEFIG, dpi=600)
 
 plt.close('all')
