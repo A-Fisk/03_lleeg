@@ -71,6 +71,10 @@ nrem_cumulative = nrem_df.groupby(level=0).cumsum()
 
 # do cumulative hourly with mean and sem too
 nrem_c_hourly = nrem_cumulative.groupby(level=0).resample("H", level=1).mean()
+
+### remove LL6 because of problems?
+nrem_c_hourly.loc["LL6", "LL_day1"] = nrem_c_hourly.loc["LL6", "LL_day0"].values
+
 nrem_means = nrem_c_hourly.stack().groupby(level=[2, 1]).mean()
 nrem_sems = nrem_c_hourly.stack().groupby(level=[2, 1]).sem()
 
@@ -94,13 +98,38 @@ nrem_delta_cumsum_der = nrem_delta_cumsum.loc[idx[:, :, der, :], :]
 # resample to hourly
 nrem_delta_hourly = nrem_delta_cumsum_der.groupby(level=[0, 1]).resample(
     "H", level=3).mean()
+
+# change LL1 because of problems
+nrem_delta_hourly.loc[idx["LL1", "LL_day1"]
+    ] = nrem_delta_hourly.loc[idx["LL1", "LL_day0"]]
+
+# normalise to max delta value at each animals baseline day
+data = nrem_delta_hourly
+days = data.index.get_level_values(1).unique()
+animals = data.index.get_level_values(0).unique()
+data_list = []
+for animal in animals:
+    baseline = data.loc[idx[animal, days[0], "2018-01-01 23:00:00"],
+               :].values[0][0]
+    day_list = []
+    for day in days:
+        exp_day = data.loc[idx[animal, day, :, :], :]
+        normalised = exp_day.div(baseline)
+        day_list.append(normalised)
+    day_df = pd.concat(day_list)
+    data_list.append(day_df)
+normalised_data = pd.concat(data_list)
+
 # get mean and sem for each hour
-nrem_delta_hourly_means = nrem_delta_hourly.groupby(level=[1, 2]).mean()
-nrem_delta_hourly_sems = nrem_delta_hourly.groupby(level=[1, 2]).sem()
+nrem_delta_hourly_means = normalised_data.groupby(level=[1, 2]).mean()
+nrem_delta_hourly_sems = normalised_data.groupby(level=[1, 2]).sem()
 
 nrem_delta_mean_df = pd.concat([nrem_delta_hourly_means,
                                 nrem_delta_hourly_sems], axis=1)
 nrem_delta_mean_df.columns = hourly_columns
+
+
+# remove LL1 day 1 from nnrem_delta_hourly
 
 ########################################
 # Step 4 plot
@@ -207,7 +236,7 @@ for day in days:
                            visible=False)
     top_ax.xaxis.set_major_formatter(xfmt)
 
-# oclour in dark
+# colour in dark
 top_ax.axvline("2018-01-01 12:00:00", color='k')
 top_ax.fill_between(dark_index, 15, 0, facecolor='k', alpha=alpha)
 
@@ -230,7 +259,7 @@ for day in days:
     delta_title = "Cumuative Delta power in constant light"
     # set ylims
     bottom_ymin = 0
-    bottom_ymax = 4.5e7
+    bottom_ymax = 1.2
     bottom_ax.set(xlim=[xmin, xmax],
                   xlabel=xlabel,
                   ylim=[bottom_ymin, bottom_ymax],
