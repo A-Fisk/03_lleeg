@@ -22,7 +22,7 @@ idx = pd.IndexSlice
 BASE_FREQ = "4S"
 SAVEFIG = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/01_projects/"
                        "01_thesisdata/03_lleeg/03_analysis_outputs/05_figures/"
-                       "03_fig3.png")
+                       "04_fig4.png")
 
 # Step 1 Import files and tidy
 # need both stage csvs and spectral
@@ -116,13 +116,15 @@ ders = cols[2]
 freq = cols[3]
 power = cols[4]
 derivations = long_wake[ders].unique()[1:]
-capsize = 5
-linesize = 1
+capsize = 1.5
+scale = 0.8
+linesize = 2
 markersize = 0.2
-alpha = 0.8
-labelsize = 5
+alpha = 0.5
+labelsize = 7.5
 xticks = np.linspace(0, 80, 21)
 xticklabels = long_wake[freq].unique()[1::4]
+ylabel = "% change from Baseline day"
 
 # create top two subplots for wake
 upper_plots = gs.GridSpec(nrows=1, ncols=2, figure=fig, bottom=0.55)
@@ -143,8 +145,8 @@ for der, curr_top_ax in zip(derivations, upper_axes):
     curr_der_data = long_wake.where(curr_der_mask)
     
     sns.pointplot(x=freq, y=power, hue=lights, data=curr_der_data, ci=68,
-                  ax=curr_top_ax, capsize=capsize, linewidth=linesize,
-                  errwidth=linesize, alpha=alpha, markersize=markersize)
+                  ax=curr_top_ax, capsize=capsize,
+                  errwidth=linesize, scale=scale)
     
     curr_legend = curr_top_ax.legend()
     if der != derivations[-1]:
@@ -155,8 +157,19 @@ for der, curr_top_ax in zip(derivations, upper_axes):
     curr_top_ax.set_xticklabels(xticklabels,
                                 rotation=30, ha='right', size=labelsize)
     
-    # set limits
-    curr_top_ax.set(ylim=[wake_ymin, wake_ymax])
+    # set axis values
+    curr_top_ax.set(ylim=[wake_ymin, wake_ymax],
+                    title=der,
+                    ylabel=ylabel)
+
+    # set properties
+    plt.setp(curr_top_ax.collections, facecolors='none')
+    plt.setp(curr_top_ax.get_lines(), linewidth=linesize)
+    
+# set the type of spectrum on RHS
+curr_top_ax.text(1.0, 0.5, "Wake", transform=curr_top_ax.transAxes,
+                 rotation=270)
+
 
 # create bottom two subplots for nrem
 lower_plots = gs.GridSpec(nrows=1, ncols=2, figure=fig, top=0.45)
@@ -177,8 +190,8 @@ for der, curr_bottom_ax in zip(derivations, lower_axes):
     curr_der_data = long_nrem.where(curr_der_mask)
     
     sns.pointplot(x=freq, y=power, hue=lights, data=curr_der_data, ci=68,
-                  ax=curr_bottom_ax, capsize=capsize, linewidth=linesize,
-                  errwidth=linesize, alpha=alpha, markersize=markersize)
+                  ax=curr_bottom_ax, capsize=capsize,
+                  errwidth=linesize, scale=scale)
 
     curr_legend = curr_bottom_ax.legend()
     curr_legend.remove()
@@ -188,6 +201,22 @@ for der, curr_bottom_ax in zip(derivations, lower_axes):
                                    rotation=30, ha='right', size=labelsize)
     
     # set limits
-    curr_bottom_ax.set(ylim=[nrem_ymin, nrem_ymax])
+    curr_bottom_ax.set(ylim=[nrem_ymin, nrem_ymax],
+                       ylabel=ylabel)
+
+    plt.setp(curr_bottom_ax.collections, facecolors='none')
+    plt.setp(curr_bottom_ax.get_lines(), linewidth=linesize)
     
+# set type
+curr_bottom_ax.text(1.0, 0.5, "NREM", transform=curr_bottom_ax.transAxes,
+                    rotation=270)
+
+fig.suptitle("Constant light changes spectral power of wake and sleep during "
+             "ZT "
+             "12-24")
+
+fig.set_size_inches(11.69, 8.27)
+
+plt.savefig(SAVEFIG, dpi=600)
+
 plt.close('all')
