@@ -125,6 +125,8 @@ labelsize = 7.5
 xticks = np.linspace(0, 80, 21)
 xticklabels = long_wake[freq].unique()[1::4]
 ylabel = "% change from Baseline day"
+hline_kwargs = {"linestyle": "--",
+                "color": "k"}
 
 # create top two subplots for wake
 upper_plots = gs.GridSpec(nrows=1, ncols=2, figure=fig, bottom=0.55)
@@ -166,6 +168,12 @@ for der, curr_top_ax in zip(derivations, upper_axes):
     plt.setp(curr_top_ax.collections, facecolors='none')
     plt.setp(curr_top_ax.get_lines(), linewidth=linesize)
     
+    # set line at 0
+    curr_top_ax.axhline(0, **hline_kwargs)
+    
+    # turn on gridlines vertical
+    curr_top_ax.xaxis.grid(True)
+    
 # set the type of spectrum on RHS
 curr_top_ax.text(1.0, 0.5, "Wake", transform=curr_top_ax.transAxes,
                  rotation=270)
@@ -206,6 +214,12 @@ for der, curr_bottom_ax in zip(derivations, lower_axes):
 
     plt.setp(curr_bottom_ax.collections, facecolors='none')
     plt.setp(curr_bottom_ax.get_lines(), linewidth=linesize)
+    
+    # set line at 0
+    curr_bottom_ax.axhline(0, **hline_kwargs)
+
+    # turn on gridlines vertical
+    curr_bottom_ax.xaxis.grid(True)
     
 # set type
 curr_bottom_ax.text(1.0, 0.5, "NREM", transform=curr_bottom_ax.transAxes,

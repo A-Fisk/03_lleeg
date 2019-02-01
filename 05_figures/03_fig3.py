@@ -56,6 +56,10 @@ sleep_stages = ["NR", "N1", "R", "R1"]
 sleep_int_df = stage_df.isin(sleep_stages).astype(int)
 hourly_sleep_prop = sleep_int_df.groupby(level=0).resample("H", level=1).mean()
 
+### remove LL6 because of problems?
+hourly_sleep_prop.loc["LL6", "LL_day1"] = hourly_sleep_prop.loc["LL6",
+                                                         "LL_day0"].values
+
 # put in with hourly mean and sem
 hourly_mean = hourly_sleep_prop.stack().groupby(level=[2, 1]).mean()
 hourly_sem = hourly_sleep_prop.stack().groupby(level=[2, 1]).sem()
@@ -254,7 +258,7 @@ for day in days:
     
     # set the limits
     # set the ylabel
-    delta_ylabel = "Cumulative Delta Power during NREM sleep"
+    delta_ylabel = "Cumulative NREM Delta, % baseline "
     # set the title
     delta_title = "Cumuative Delta power in constant light"
     # set ylims

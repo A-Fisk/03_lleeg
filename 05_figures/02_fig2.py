@@ -204,7 +204,7 @@ for count_label, curr_total_ax in zip(totals_dict.keys(), totals_axes):
     # set REM ymax
     ymax = 16
     if count_label == "REM":
-        ymax = 6
+        ymax = 3
     curr_total_ax.set(ylim=[0, ymax],
                       ylabel=ylabel)
     
