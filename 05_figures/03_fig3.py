@@ -39,6 +39,7 @@ df_names = [x.name for x in df_list]
 df_dict = dict(zip(df_names, df_list))
 
 spectrum_df = pd.concat(df_dict)
+spectrum_df = spectrum_df.loc[idx[:, :"LL_day2", :], :]
 
 #same thing with stage df
 stage_dir = pathlib.Path('/Users/angusfisk/Documents/01_PhD_files/01_projects/'
@@ -50,6 +51,7 @@ stage_list = [prep.read_file_to_df(x, index_col=[0]) for x in
 stage_dfnames = [x.name for x in stage_list]
 stage_dict = dict(zip(stage_dfnames, stage_list))
 stage_df = pd.concat(stage_dict)
+stage_df = stage_df.loc[:, :"LL_day2"]
 
 # Step 2 Get hourly sleep data together
 sleep_stages = ["NR", "N1", "R", "R1"]
@@ -57,8 +59,8 @@ sleep_int_df = stage_df.isin(sleep_stages).astype(int)
 hourly_sleep_prop = sleep_int_df.groupby(level=0).resample("H", level=1).mean()
 
 ### remove LL6 because of problems?
-hourly_sleep_prop.loc["LL6", "LL_day1"] = hourly_sleep_prop.loc["LL6",
-                                                         "LL_day0"].values
+# hourly_sleep_prop.loc["LL6", "LL_day1"] = hourly_sleep_prop.loc["LL6",
+#                                                          "LL_day0"].values
 
 # put in with hourly mean and sem
 hourly_mean = hourly_sleep_prop.stack().groupby(level=[2, 1]).mean()
@@ -77,7 +79,7 @@ nrem_cumulative = nrem_df.groupby(level=0).cumsum()
 nrem_c_hourly = nrem_cumulative.groupby(level=0).resample("H", level=1).mean()
 
 ### remove LL6 because of problems?
-nrem_c_hourly.loc["LL6", "LL_day1"] = nrem_c_hourly.loc["LL6", "LL_day0"].values
+# nrem_c_hourly.loc["LL6", "LL_day2"] = nrem_c_hourly.loc["LL6", "LL_day1"].values
 
 nrem_means = nrem_c_hourly.stack().groupby(level=[2, 1]).mean()
 nrem_sems = nrem_c_hourly.stack().groupby(level=[2, 1]).sem()
@@ -104,8 +106,8 @@ nrem_delta_hourly = nrem_delta_cumsum_der.groupby(level=[0, 1]).resample(
     "H", level=3).mean()
 
 # change LL1 because of problems
-nrem_delta_hourly.loc[idx["LL1", "LL_day1"]
-    ] = nrem_delta_hourly.loc[idx["LL1", "LL_day0"]]
+nrem_delta_hourly.loc[idx["LL1", "LL_day2"]
+    ] = nrem_delta_hourly.loc[idx["LL1", "LL_day1"]]
 
 # normalise to max delta value at each animals baseline day
 data = nrem_delta_hourly
