@@ -58,10 +58,6 @@ sleep_stages = ["NR", "N1", "R", "R1"]
 sleep_int_df = stage_df.isin(sleep_stages).astype(int)
 hourly_sleep_prop = sleep_int_df.groupby(level=0).resample("H", level=1).mean()
 
-### remove LL6 because of problems?
-# hourly_sleep_prop.loc["LL6", "LL_day1"] = hourly_sleep_prop.loc["LL6",
-#                                                          "LL_day0"].values
-
 # put in with hourly mean and sem
 hourly_mean = hourly_sleep_prop.stack().groupby(level=[2, 1]).mean()
 hourly_sem = hourly_sleep_prop.stack().groupby(level=[2, 1]).sem()
@@ -77,10 +73,6 @@ nrem_cumulative = nrem_df.groupby(level=0).cumsum()
 
 # do cumulative hourly with mean and sem too
 nrem_c_hourly = nrem_cumulative.groupby(level=0).resample("H", level=1).mean()
-
-### remove LL6 because of problems?
-# nrem_c_hourly.loc["LL6", "LL_day2"] = nrem_c_hourly.loc["LL6", "LL_day1"].values
-
 nrem_means = nrem_c_hourly.stack().groupby(level=[2, 1]).mean()
 nrem_sems = nrem_c_hourly.stack().groupby(level=[2, 1]).sem()
 
