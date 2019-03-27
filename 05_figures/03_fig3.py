@@ -6,6 +6,7 @@
 # imports
 import pandas as pd
 import numpy as np
+import pingouin as pg
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 import matplotlib.dates as mdates
@@ -79,21 +80,30 @@ nrem_sems = nrem_c_hourly.stack().groupby(level=[2, 1]).sem()
 nrem_mean_df = pd.concat([nrem_means, nrem_sems], axis=1)
 nrem_mean_df.columns = hourly_columns
 
-# create cumulative mean and hourly of delta power in NREM
+# create cumulative mean and hourly of delta power in NREM #####################
 band = ["Delta"] # sum delta power
 range_to_sum = ("0.50Hz", "4.00Hz")
 delta_df = prep.create_df_for_single_band(spectrum_df, name_of_band=band,
                                          range_to_sum=range_to_sum)
+swe_df = prep.create_df_for_single_band(spectrum_df,
+                                        name_of_band=band,
+                                        range_to_sum=range_to_sum,
+                                        sum=False,
+                                        mean=True)
 nrem_mask = delta_df["Stage"].isin(nrem_stages[:-1])
 nrem_delta = delta_df.where(nrem_mask, other=0)
+nrem_swe = swe_df.where(nrem_mask, other=0)
 
 # hack LL1 values wrong for now
 nrem_delta.loc[idx["LL1", "LL_day2"]
     ] = nrem_delta.loc[idx["LL1", "LL_day1"]]
+nrem_swe.loc[idx["LL1", "LL_day2"]
+    ] = nrem_swe.loc[idx["LL1", "LL_day1"]]
 
 # select single derivation and column
 der = "fro"
 nrem_delta_der = nrem_delta.loc[idx[:, :, der, :], band]
+nrem_swe_der = nrem_swe.loc[idx[:, :, der, :], band]
 
 # get hourly cumsum values
 nrem_delta_cumsum = nrem_delta_der.groupby(level=[0, 1, 2]).cumsum()
@@ -124,11 +134,14 @@ nrem_delta_mean_df = pd.concat([nrem_delta_hourly_means,
                                 nrem_delta_hourly_sems], axis=1)
 nrem_delta_mean_df.columns = hourly_columns
 
+
+
 # get hourly mean and SEM of straight delta power in a df
-nd_hr_mean_anims = nrem_delta_der.groupby(level=[0, 1]
-                                          ).resample("H",
-                                                     level=3
-                                                     ).mean()
+
+nd_hr_mean_anims = nrem_swe_der.groupby(level=[0, 1]
+                                        ).resample("H",
+                                                   level=3
+                                                   ).mean()
 # noramlise to baseline
 # grab the mean of the baseline day, divide all values by that
 def norm_to_base(anim_df,
@@ -140,26 +153,148 @@ def norm_to_base(anim_df,
 nd_hr_me_an_norm = nd_hr_mean_anims.groupby(level=0
                                             ).apply(norm_to_base)
 
-# tidy into a df
-nd_hr_mean = nd_hr_me_an_norm.groupby(level=[1, 2]).mean()
-nd_hr_sem = nd_hr_me_an_norm.groupby(level=[1, 2]).sem()
-nd_hr_df = pd.concat([nd_hr_mean, nd_hr_sem], axis=1)
-nd_hr_df.columns = hourly_columns
-
 # replace 0s with Nans
-nan_mask = nd_hr_df.loc[:, hourly_columns[0]] == 0.0
-nd_hr_df = nd_hr_df.mask(nan_mask, other=np.nan)
-
+nan_mask = nd_hr_me_an_norm == 0.0
+nd_hr_me_an_norm = nd_hr_me_an_norm.mask(nan_mask, other=np.nan)
 # check if more than ? amount of NREM sleep per time bin
 # create mask from sum of bool of resampled stage df, if above cutoff then
 # include
+# remove if less than 5 minutes of sleep per hour
+epochs_5min = pd.Timedelta("5M").seconds / 4
+bool_hr_mask = nrem_swe_der.astype(bool
+                                   ).groupby(level=[0, 1]
+                                             ).resample("H", level=3
+                                                        ).sum() > epochs_5min
+nd_hr_me_an_5min = nd_hr_me_an_norm.where(bool_hr_mask, other=np.nan)
+
+# tidy into a df
+nd_hr_mean = nd_hr_me_an_5min.groupby(level=[1, 2]).mean()
+nd_hr_sem = nd_hr_me_an_5min.groupby(level=[1, 2]).sem()
+nd_hr_df = pd.concat([nd_hr_mean, nd_hr_sem], axis=1)
+nd_hr_df.columns = hourly_columns
+
+
 
 ############# Stats ############################################################
 
+# 1. Does constant light affect the proportion of each hour spent asleep?
+# Two way anova of HourxDay on proportion asleep
+# Ignoring underlying rhythmic function here to do ANOVA and get a number
+
+stat_colnames = ["Animal", "Hour", "Day", "Value"]
+dep_var = stat_colnames[-1]
+anim = stat_colnames[0]
+hour_col = stat_colnames[1]
+day_col = stat_colnames[2]
+hours = hourly_sleep_prop.index.get_level_values(-1).unique()
+
+test_df = hourly_sleep_prop
+long_df = test_df.stack().reset_index()
+long_df.columns = stat_colnames
+
+# prop 2 way rm
+test_rm = pg.rm_anova2(dv=dep_var,
+                       within=[day_col, hour_col],
+                       subject=anim,
+                       data=long_df)
+pg.print_table(test_rm)
+
+# prop post hoc
+for hour in hours:
+    print(hour)
+    hour_df = long_df.query("%s == '%s'"%(hour_col, hour))
+    ph = pg.pairwise_tukey(dv=dep_var,
+                           between=day_col,
+                           data=hour_df)
+    pg.print_table(ph)
+
+# can't do repeated measures on swe since missing values
+swe_test = nd_hr_me_an_5min.reset_index()
+swe_test = swe_test.iloc[:, [0, 2, 1, 3]].copy()
+swe_test.columns = stat_colnames
+
+swe_anova_df = swe_test.drop(anim, axis=1)
+swe_anova = pg.anova(dv=dep_var,
+                     between=[day_col, hour_col],
+                     data=swe_anova_df)
+pg.print_table(swe_anova)
+
+# swe post hoc
+for hour in hours[:-1]:
+    print(hour)
+    hour_df = swe_anova_df.query("%s == '%s'"%(hour_col, hour))
+    ph = pg.pairwise_tukey(dv=dep_var,
+                           between=day_col,
+                           data=hour_df)
+    pg.print_table(ph)
+    
+    
+# 2. Does constant light change the amount or intensity of sleep?
+# One way anova on the max values of time of NREM sleep and Delta power
+# Post hoc - either linear regression or tukeys post hoc for each hour?
+max_nrem_time = nrem_c_hourly.groupby(level=0).max()
+test_df = max_nrem_time.stack().reset_index()
+test_df.columns = [stat_colnames[x] for x in (0, 2, 3)]
+test_df.drop(anim, axis=1, inplace=True)
+
+# max nrem time anova
+nrem_time_anova = pg.anova(dv=dep_var,
+                           between=day_col,
+                           data=test_df)
+pg.print_table(nrem_time_anova)
+
+# post hoc test for each hour of cumulative nrem
+test_df = nrem_c_hourly.stack().reset_index()
+test_df.columns = stat_colnames
 
 
+for hour in hours:
+    print(hour)
+    curr_hour_df = test_df.query("%s == '%s'"%(hour_col, hour))
+    ph = pg.pairwise_tukey(dv=dep_var,
+                           between=day_col,
+                           data=curr_hour_df)
+    pg.print_table(ph)
+    
+# # post hoc linear regression of light and dark separately
+# light_data = nrem_c_hourly.loc[idx[:, :"2018-01-01 11:00:00"], :]
+# dark_data = nrem_c_hourly.loc[idx[:, "2018-01-01 12:00:00":"2018-01-01 " \
+#                                                            "23:00:00"], :]
+# ld_data = []
+# for df in [light_data, dark_data]:
+#     new_df = df.stack().reset_index()
+#     new_df.columns = stat_colnames
+#     new_df.drop(anim, axis=1, inplace=True)
+#     ld_data.append(new_df)
+#
+# ld_labels = ['light', 'dark']
+# for df, label in zip(ld_data, ld_labels):
+#     print(label)
+#
+#     for day in days:
+#         day_df = df.query("%s == '%s'"%(day_col, day))
+#         xvals = day_df[hour_col]
+#         xvals = [x.hour for x in xvals]
+#         yvals = day_df[dep_var].values
+#
+#         linreg = pg.linear_regression(X=xvals,
+#                                       y=yvals,
+#                                       add_intercept=True)
+#         print(day)
+#         pg.print_table(linreg)
 
+# same thing for max delta power
+max_swa = normalised_data.groupby(level=[0, 1]).max()
+test_df = max_swa.reset_index()
+test_df.columns = [stat_colnames[x] for x in (0, 2, 3)]
+test_df.drop(anim, axis=1, inplace=True)
 
+swa_anova = pg.anova(dv=dep_var,
+                     between=day_col,
+                     data=test_df)
+pg.print_table(swa_anova)
+
+    
 ################################################################################
 # Step 4 plot
 fig = plt.figure()
@@ -195,23 +330,16 @@ for curr_df, curr_ax in zip(hr_df_list, hourly_sleep_axis):
         # set the xlimits
         xmin = "2018-01-01 00:00:00"
         xmax = "2018-01-02 00:00:00"
-        # set the ylabel
-        hourly_ylabel = "Proportion of sleep per hour"
-        # set the title
-        hourly_title = "Proportion of sleep per hour in constant light"
-        # set ylims
-        ymin = 0
-        ymax = 1
+        
         # set the xlabel
         xlabel = "Time of day, ZT hours"
         curr_ax.set(xlim=[xmin, xmax],
-                    xlabel=xlabel,
-                    ylabel=hourly_ylabel,
-                    title=hourly_title)
+                    xlabel=xlabel)
         
         # set times to look good
         curr_ax.set_xticklabels(curr_ax.get_xticklabels(),
-                                          rotation=30, ha='right')
+                                rotation=30,
+                                ha='right')
         curr_ax.xaxis.set_major_formatter(xfmt)
         
     dark_index = curr_day.loc["2018-01-01 12:00:00":"2018-01-02 00:00:00"].index
@@ -220,11 +348,25 @@ for curr_df, curr_ax in zip(hr_df_list, hourly_sleep_axis):
     curr_ax.fill_between(dark_index, 500, 0,
                                    facecolors='k', alpha=alpha)
 
-hourly_sleep_axis[0].legend()
+# tidy hourly prop
+hr_ax = hourly_sleep_axis[0]
+hr_ax.legend()
 prop_ylim = [0, 1]
-hourly_sleep_axis[0].set_ylim(prop_ylim)
-delt_ylim = [0, 210]
-hourly_sleep_axis[1].set_ylim(delt_ylim)
+hr_ax.set_ylim(prop_ylim)
+hourly_ylabel = "Proportion of sleep per hour"
+hourly_title = "Proportion of sleep per hour in constant light"
+hr_ax.set(ylabel=hourly_ylabel,
+          title=hourly_title)
+
+# tidy swe
+swe_ax = hourly_sleep_axis[1]
+delt_ylim = [0, 250]
+swe_ax.set_ylim(delt_ylim)
+swe_ylabel = "SWE, % of entire baseline day"
+swe_title = "SWE per hour"
+swe_ax.set(ylabel=swe_ylabel,
+           title=swe_title)
+
 
 # Plot RHS cumulative sleep and delta
 
