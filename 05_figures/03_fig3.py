@@ -142,7 +142,9 @@ nd_hr_mean_anims = nrem_swe_der.groupby(level=[0, 1]
                                         ).resample("H",
                                                    level=3
                                                    ).mean()
-# noramlise to baseline
+mask = nd_hr_mean_anims[band] == 0.0
+nd_hr_mean_anims = nd_hr_mean_anims.mask(mask, other=np.nan)
+# normalise to baseline
 # grab the mean of the baseline day, divide all values by that
 def norm_to_base(anim_df,
                  baseline_str: str="Baseline_-0"):
@@ -150,6 +152,7 @@ def norm_to_base(anim_df,
     normalise_values = base_values.mean()
     normalised_df = (anim_df / normalise_values) * 100
     return normalised_df
+
 nd_hr_me_an_norm = nd_hr_mean_anims.groupby(level=0
                                             ).apply(norm_to_base)
 
@@ -160,7 +163,7 @@ nd_hr_me_an_norm = nd_hr_me_an_norm.mask(nan_mask, other=np.nan)
 # create mask from sum of bool of resampled stage df, if above cutoff then
 # include
 # remove if less than 5 minutes of sleep per hour
-epochs_5min = pd.Timedelta("5M").seconds / 4
+epochs_5min = pd.Timedelta("10M").seconds / 4
 bool_hr_mask = nrem_swe_der.astype(bool
                                    ).groupby(level=[0, 1]
                                              ).resample("H", level=3
@@ -187,10 +190,17 @@ anim = stat_colnames[0]
 hour_col = stat_colnames[1]
 day_col = stat_colnames[2]
 hours = hourly_sleep_prop.index.get_level_values(-1).unique()
+save_test_dir = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/"
+                             "01_projects/01_thesisdata/03_lleeg/"
+                             "03_analysis_outputs/05_figures/00_csvs/03_fig3")
+anova_csv = "01_anova.csv"
+ph_csv = "02_posthoc.csv"
 
 test_df = hourly_sleep_prop
 long_df = test_df.stack().reset_index()
 long_df.columns = stat_colnames
+
+hourly_test_dir = save_test_dir / "hour_prop"
 
 # prop 2 way rm
 test_rm = pg.rm_anova2(dv=dep_var,
@@ -200,6 +210,7 @@ test_rm = pg.rm_anova2(dv=dep_var,
 pg.print_table(test_rm)
 
 # prop post hoc
+ph_dict = {}
 for hour in hours:
     print(hour)
     hour_df = long_df.query("%s == '%s'"%(hour_col, hour))
@@ -207,11 +218,20 @@ for hour in hours:
                            between=day_col,
                            data=hour_df)
     pg.print_table(ph)
+    ph_dict[hour] = ph
+ph_df = pd.concat(ph_dict)
+
+hr_anova_file = hourly_test_dir / anova_csv
+hr_ps_file = hourly_test_dir / ph_csv
+test_rm.to_csv(hr_anova_file)
+ph_df.to_csv(hr_ps_file)
 
 # can't do repeated measures on swe since missing values
 swe_test = nd_hr_me_an_5min.reset_index()
 swe_test = swe_test.iloc[:, [0, 2, 1, 3]].copy()
 swe_test.columns = stat_colnames
+
+swa_test_dir = save_test_dir / "SWA"
 
 swe_anova_df = swe_test.drop(anim, axis=1)
 swe_anova = pg.anova(dv=dep_var,
@@ -220,6 +240,7 @@ swe_anova = pg.anova(dv=dep_var,
 pg.print_table(swe_anova)
 
 # swe post hoc
+ph_dict = {}
 for hour in hours[:-1]:
     print(hour)
     hour_df = swe_anova_df.query("%s == '%s'"%(hour_col, hour))
@@ -227,7 +248,14 @@ for hour in hours[:-1]:
                            between=day_col,
                            data=hour_df)
     pg.print_table(ph)
-    
+    ph_dict[hour] = ph
+ph_df = pd.concat(ph_dict)
+
+swa_anova_file = swa_test_dir / anova_csv
+swa_ps_file = swa_test_dir / ph_csv
+swe_anova.to_csv(swa_anova_file)
+ph_df.to_csv(swa_ps_file)
+
     
 # 2. Does constant light change the amount or intensity of sleep?
 # One way anova on the max values of time of NREM sleep and Delta power
@@ -236,6 +264,8 @@ max_nrem_time = nrem_c_hourly.groupby(level=0).max()
 test_df = max_nrem_time.stack().reset_index()
 test_df.columns = [stat_colnames[x] for x in (0, 2, 3)]
 test_df.drop(anim, axis=1, inplace=True)
+
+nrem_test_dir = save_test_dir / "NREM"
 
 # max nrem time anova
 nrem_time_anova = pg.anova(dv=dep_var,
@@ -247,7 +277,7 @@ pg.print_table(nrem_time_anova)
 test_df = nrem_c_hourly.stack().reset_index()
 test_df.columns = stat_colnames
 
-
+ph_dict = {}
 for hour in hours:
     print(hour)
     curr_hour_df = test_df.query("%s == '%s'"%(hour_col, hour))
@@ -255,33 +285,13 @@ for hour in hours:
                            between=day_col,
                            data=curr_hour_df)
     pg.print_table(ph)
-    
-# # post hoc linear regression of light and dark separately
-# light_data = nrem_c_hourly.loc[idx[:, :"2018-01-01 11:00:00"], :]
-# dark_data = nrem_c_hourly.loc[idx[:, "2018-01-01 12:00:00":"2018-01-01 " \
-#                                                            "23:00:00"], :]
-# ld_data = []
-# for df in [light_data, dark_data]:
-#     new_df = df.stack().reset_index()
-#     new_df.columns = stat_colnames
-#     new_df.drop(anim, axis=1, inplace=True)
-#     ld_data.append(new_df)
-#
-# ld_labels = ['light', 'dark']
-# for df, label in zip(ld_data, ld_labels):
-#     print(label)
-#
-#     for day in days:
-#         day_df = df.query("%s == '%s'"%(day_col, day))
-#         xvals = day_df[hour_col]
-#         xvals = [x.hour for x in xvals]
-#         yvals = day_df[dep_var].values
-#
-#         linreg = pg.linear_regression(X=xvals,
-#                                       y=yvals,
-#                                       add_intercept=True)
-#         print(day)
-#         pg.print_table(linreg)
+    ph_dict[hour] = ph
+ph_df = pd.concat(ph_dict)
+
+nrem_anova_file = nrem_test_dir / anova_csv
+nrem_ps_file = nrem_test_dir / ph_csv
+nrem_time_anova.to_csv(nrem_anova_file)
+ph_df.to_csv(nrem_ps_file)
 
 # same thing for max delta power
 max_swa = normalised_data.groupby(level=[0, 1]).max()
@@ -289,12 +299,33 @@ test_df = max_swa.reset_index()
 test_df.columns = [stat_colnames[x] for x in (0, 2, 3)]
 test_df.drop(anim, axis=1, inplace=True)
 
+swe_test_dir = save_test_dir / "SWE"
+
 swa_anova = pg.anova(dv=dep_var,
                      between=day_col,
                      data=test_df)
 pg.print_table(swa_anova)
 
-    
+# now do post hoc test
+test_df = normalised_data.reset_index()
+test_df.columns = stat_colnames
+
+ph_dict = {}
+for hour in hours[:-1]:
+    print(hour)
+    curr_hour_df = test_df.query("%s == '%s'"%(day_col, hour))
+    ph = pg.pairwise_tukey(dv=dep_var,
+                           between=hour_col,
+                           data=curr_hour_df)
+    pg.print_table(ph)
+    ph_dict[hour] = ph
+ph_df = pd.concat(ph_dict)
+
+swe_anova_file = swe_test_dir / anova_csv
+swe_ps_file = swe_test_dir / ph_csv
+swa_anova.to_csv(swe_anova_file)
+ph_df.to_csv(swe_ps_file)
+
 ################################################################################
 # Step 4 plot
 fig = plt.figure()
