@@ -5,6 +5,7 @@
 # imports
 import pandas as pd
 import numpy as np
+import pingouin as pg
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 import matplotlib.dates as mdates
@@ -37,6 +38,7 @@ df_names = [x.name for x in df_list]
 df_dict = dict(zip(df_names, df_list))
 
 spectrum_df = pd.concat(df_dict)
+spectrum_df = spectrum_df.loc[idx[:, :"LL_day2", :], :]
 
 #same thing with stage df
 stage_dir = pathlib.Path('/Users/angusfisk/Documents/01_PhD_files/01_projects/'
@@ -48,6 +50,7 @@ stage_list = [prep.read_file_to_df(x, index_col=[0]) for x in
 stage_dfnames = [x.name for x in stage_list]
 stage_dict = dict(zip(stage_dfnames, stage_list))
 stage_df = pd.concat(stage_dict)
+stage_df = stage_df.loc[:, :"LL_day2"]
 
 # Step 2 create delta power file
 band = ["Delta"]
@@ -82,8 +85,59 @@ totals_dict = {
 
 totals_df = pd.concat(totals_dict)
 
+# Stats ########################################################################
 
-################################
+# 1. Does LL affect the time in each stage?
+# Repeated Measures 1 way anova for each stage type.
+# Not doing 2 way as the markers are all inter-related
+
+save_test_dir = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/"
+                             "01_projects/01_thesisdata/03_lleeg/"
+                             "03_analysis_outputs/05_figures/00_csvs/02_fig2")
+
+# grab values
+stat_colnames = ["Day", "Animal", "Time", "Value"]
+dep_var = stat_colnames[-1]
+day = stat_colnames[0]
+anim = stat_colnames[1]
+time = stat_colnames[2]
+time_vals = total_sleep.columns
+
+# rm for each tim val
+for part in time_vals:
+    print(part)
+    part_dir = save_test_dir / part
+    # perform rm anova for each stage type
+    for key, df in zip(totals_dict.keys(), totals_dict.values()):
+        
+        print(key)
+        
+        # tidy data
+        long_df = df.stack().reset_index()
+        long_df.columns = stat_colnames
+        part_df = long_df.query("%s == '%s'"%(time, part))
+        
+        # do anova
+        part_rm = pg.rm_anova(dv=dep_var,
+                              within=day,
+                              subject=anim,
+                              data=part_df)
+        pg.print_table(part_rm)
+
+        # do posthoc
+        ph  = pg.pairwise_tukey(dv=dep_var,
+                                between=day,
+                                data=part_df)
+        pg.print_table(ph)
+        
+        stage_test_dir = part_dir / key
+        anova_file = stage_test_dir / "01_anova.csv"
+        ph_file = stage_test_dir / "02_posthoc.csv"
+        
+        part_rm.to_csv(anova_file)
+        ph.to_csv(ph_file)
+
+################################################################################
 # Plotting #
 fig = plt.figure()
 
