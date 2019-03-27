@@ -4,6 +4,7 @@
 # imports
 import pandas as pd
 import numpy as np
+import pingouin as pg
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 import matplotlib.dates as mdates
@@ -86,12 +87,71 @@ normalised_wake = normalise_to_baseline(wake_spectrum)
 normalised_nrem = normalise_to_baseline(nrem_spectrum)
 
 # Step 5 turn into longform data for plotting
-long_wake = normalised_wake.stack().reset_index()
-long_nrem = normalised_nrem.stack().reset_index()
+long_wake = normalised_wake.iloc[:, 3:].stack().reset_index()
+long_nrem = normalised_nrem.iloc[:, 3:].stack().reset_index()
 
 cols = ["Animal", "Light_period", "Derivation", "Frequency", "Power"]
 long_wake.columns = cols
 long_nrem.columns = cols
+
+# Stats ########################################################################
+
+# log transformed
+log_wake = np.log10(wake_spectrum)
+log_nrem = np.log10(nrem_spectrum)
+
+# 1. Does the day affect the spectrum?
+# repeated measures 2 way anova of power ~ freq x light period
+
+ders = log_wake.index.get_level_values(2).unique()
+freqs = log_wake.columns
+stats_colnames = ["Animal", "Time", "Derivation", "Frequency", "Power"]
+dep_var = stats_colnames[-1]
+day_col = stats_colnames[1]
+freq_col = stats_colnames[3]
+anim_col = stats_colnames[0]
+der_col = stats_colnames[2]
+data_list = [log_nrem, log_wake]
+data_type = ["NREM", "Wake"]
+
+save_test_dir = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/"
+                             "01_projects/01_thesisdata/03_lleeg/"
+                             "03_analysis_outputs/05_figures/00_csvs/04_fig4")
+
+for df_type, label in zip(data_list, data_type):
+    print(label)
+    test_df = df_type.stack().reset_index()
+    test_df.columns = stats_colnames
+    type_dir = save_test_dir / label
+    for der in ders:
+        print(der)
+        der_dir = type_dir / der
+        der_df = test_df.query("%s == '%s'"%(der_col, der))
+        der_df = der_df.drop(der_col, axis=1)
+
+        # rm anova
+        anova = pg.rm_anova2(dv=dep_var,
+                             within=[day_col, freq_col],
+                             subject=anim_col,
+                             data=der_df)
+        pg.print_table(anova)
+        anova_file = der_dir / "01_anova.csv"
+        anova.to_csv(anova_file)
+        
+        # post hoc
+        ph_dict = {}
+        for freq in freqs:
+            print(freq)
+            freq_df = der_df.query("%s == '%s'"%(freq_col, freq))
+            ph = pg.pairwise_tukey(dv=dep_var,
+                                   between=day_col,
+                                   data=freq_df)
+            pg.print_table(ph)
+            ph_dict[freq] = ph
+        ph_df = pd.concat(ph_dict)
+        ph_file = der_dir / "02_posthoc.csv"
+        ph_df.to_csv(ph_file)
+
 
 # Step 6 Plot wake on top two and nrem on bottom two subplots
 
@@ -123,7 +183,7 @@ markersize = 0.2
 alpha = 0.5
 labelsize = 7.5
 xticks = np.linspace(0, 80, 21)
-xticklabels = long_wake[freq].unique()[1::4]
+xticklabels = long_wake[freq].unique()[2::4]
 ylabel = "% change from Baseline day"
 hline_kwargs = {"linestyle": "--",
                 "color": "k"}
@@ -138,7 +198,7 @@ for plot in upper_plots:
     
 # wake constants
 wake_ymin = -25
-wake_ymax = 40
+wake_ymax = 20
     
 # plot the separate derivation on each plot
 for der, curr_top_ax in zip(derivations, upper_axes):
@@ -188,8 +248,8 @@ for plot in lower_plots:
     lower_axes.append(add_ax)
     
 # nrem constants
-nrem_ymin = -60
-nrem_ymax = 40
+nrem_ymin = -80
+nrem_ymax = 10
     
 # plot the separate derivation on each plot
 for der, curr_bottom_ax in zip(derivations, lower_axes):
