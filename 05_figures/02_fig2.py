@@ -6,13 +6,16 @@
 import pandas as pd
 import numpy as np
 import pingouin as pg
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 import matplotlib.dates as mdates
 import seaborn as sns
+
 sns.set()
 import pathlib
 import sys
+
 sys.path.insert(0, "/Users/angusfisk/Documents/01_PhD_files/"
                    "07_python_package/sleepPy")
 import sleepPy.preprocessing as prep
@@ -40,10 +43,10 @@ df_dict = dict(zip(df_names, df_list))
 spectrum_df = pd.concat(df_dict)
 spectrum_df = spectrum_df.loc[idx[:, :"LL_day2", :], :]
 
-#same thing with stage df
+# same thing with stage df
 stage_dir = pathlib.Path('/Users/angusfisk/Documents/01_PhD_files/01_projects/'
-                        '01_thesisdata/03_lleeg/01_data_files'
-                        '/08_stage_csv')
+                         '01_thesisdata/03_lleeg/01_data_files'
+                         '/08_stage_csv')
 stage_names = sorted(stage_dir.glob("*.csv"))
 stage_list = [prep.read_file_to_df(x, index_col=[0]) for x in
               stage_names]
@@ -56,7 +59,7 @@ stage_df = stage_df.loc[:, :"LL_day2"]
 band = ["Delta"]
 range_to_sum = ("0.50Hz", "4.00Hz")
 delta_df = prep.create_df_for_single_band(spectrum_df, name_of_band=band,
-                                         range_to_sum=range_to_sum)
+                                          range_to_sum=range_to_sum)
 
 # Step 3 Count sleep, NREM, REM and wake
 sleep_stages = ["NR", "N1", "R", "R1"]
@@ -70,9 +73,9 @@ unstacked_stages.name = "stages"
 total_sleep = prep.lightdark_df(unstacked_stages, stage_list=sleep_stages,
                                 data_list=False)
 nrem_sleep = prep.lightdark_df(unstacked_stages, stage_list=nrem_stages,
-                                data_list=False)
-rem_sleep = prep.lightdark_df(unstacked_stages, stage_list=rem_stages,
                                data_list=False)
+rem_sleep = prep.lightdark_df(unstacked_stages, stage_list=rem_stages,
+                              data_list=False)
 wake_count = prep.lightdark_df(unstacked_stages, stage_list=wake_stages,
                                data_list=False)
 
@@ -104,18 +107,19 @@ time = stat_colnames[2]
 time_vals = total_sleep.columns
 
 # rm for each tim val
+ph_total_dict = {}
 for part in time_vals:
     print(part)
     part_dir = save_test_dir / part
     # perform rm anova for each stage type
+    ph_part_dict = {}
     for key, df in zip(totals_dict.keys(), totals_dict.values()):
-        
         print(key)
         
         # tidy data
         long_df = df.stack().reset_index()
         long_df.columns = stat_colnames
-        part_df = long_df.query("%s == '%s'"%(time, part))
+        part_df = long_df.query("%s == '%s'" % (time, part))
         
         # do anova
         part_rm = pg.rm_anova(dv=dep_var,
@@ -123,12 +127,13 @@ for part in time_vals:
                               subject=anim,
                               data=part_df)
         pg.print_table(part_rm)
-
+        
         # do posthoc
-        ph  = pg.pairwise_tukey(dv=dep_var,
-                                between=day,
-                                data=part_df)
+        ph = pg.pairwise_tukey(dv=dep_var,
+                               between=day,
+                               data=part_df)
         pg.print_table(ph)
+        ph_part_dict[key] = ph
         
         stage_test_dir = part_dir / key
         anova_file = stage_test_dir / "01_anova.csv"
@@ -136,6 +141,11 @@ for part in time_vals:
         
         part_rm.to_csv(anova_file)
         ph.to_csv(ph_file)
+    
+    ph_part_df = pd.concat(ph_part_dict)
+    ph_total_dict[part] = ph_part_df
+ph_total_df = pd.concat(ph_total_dict)
+ph_total_df = ph_total_df.reorder_levels([1, 0, 2])
 
 ################################################################################
 # Plotting #
@@ -163,7 +173,7 @@ for day, curr_ax in zip(days, day_axes):
     
     # remove artefacts and separate into stages to loop through
     stages_list = plot._create_plot_ready_stages_list(day_data)
-
+    
     # plot each stage one by one on the axis
     for stage_data in stages_list:
         # resample to remove interpolation lines
@@ -172,7 +182,7 @@ for day, curr_ax in zip(days, day_axes):
         label = stage_data.iloc[0, label_col]
         curr_ax.plot(curr_data,
                      label=label)
-     
+    
     # TODO fill in grey background
     dark_index = curr_data.between_time("12:00:00", "23:59:00").index
     if day == days[0]:
@@ -204,45 +214,51 @@ for day, curr_ax in zip(days, day_axes):
 fig.autofmt_xdate()
 
 curr_ax.set_xlabel("Time of Day, ZT hours")
-    
-    
 
 # Step 5 Plot totals right hand side - use seaborn
 # create the axes to plot on
 totals_grid = gs.GridSpec(nrows=4, ncols=1, figure=fig,
                           left=0.55, hspace=0.1)
+totals_axes = [plt.subplot(x) for x in totals_grid]
 
-# create an axis for each total to plot
-totals_axes = []
-for row in totals_grid:
-    add_ax = plt.subplot(row)
-    totals_axes.append(add_ax)
-    
 # totals plotting constants
 plotting_columns = ["Day", "Animal", "Light", "Sum"]
 day_col = plotting_columns[0]
 anim = plotting_columns[1]
 lights = plotting_columns[2]
 sum_data = plotting_columns[3]
-order = ["total", "dark", "light"]
+order = ["total", "light", "dark"]
+sig_col = "p-tukey"
+sig_val = 0.05
+sig_line_ylevel = 0.9
 
 # for each count type
 for count_label, curr_total_ax in zip(totals_dict.keys(), totals_axes):
-
+    
     count_data = totals_dict[count_label]
     # tidy up the data
     # change units to s
     converted_count = ((count_data * 4) / 60) / 60
     totals_plotting_data = converted_count.stack().reset_index()
     totals_plotting_data.columns = plotting_columns
-
+    
     # plot data as a boxplot with individual points
-    sns.boxplot(x=day_col, y=sum_data, hue=lights, data=totals_plotting_data,
-                ax=curr_total_ax, hue_order=order, fliersize=0)
-
-    sns.stripplot(x=day_col, y=sum_data, hue=lights, data=totals_plotting_data,
-                ax=curr_total_ax, dodge=True, hue_order=order)
-
+    sns.boxplot(hue=day_col,
+                y=sum_data,
+                x=lights,
+                data=totals_plotting_data,
+                ax=curr_total_ax,
+                order=order,
+                fliersize=0)
+    
+    sns.stripplot(hue=day_col,
+                  y=sum_data,
+                  x=lights,
+                  data=totals_plotting_data,
+                  ax=curr_total_ax,
+                  dodge=True,
+                  order=order)
+    
     # modify the legend
     ax_leg = curr_total_ax.legend()
     ax_handles, ax_labels = curr_total_ax.get_legend_handles_labels()
@@ -265,11 +281,34 @@ for count_label, curr_total_ax in zip(totals_dict.keys(), totals_axes):
     # set the title for the column
     if curr_total_ax == totals_axes[0]:
         curr_total_ax.set_title("Time in stages per 24 hours")
-        
+    
     curr_total_ax.text(1.0, 0.5,
                        count_label, transform=curr_total_ax.transAxes,
                        rotation=270)
 
+    # add in statistical significance
+
+    # get y value to lookup
+    ycoord_data_val = plot.sig_line_coord_get(curr_total_ax,
+                                              sig_line_ylevel)
+
+    # get x value from tests
+    ph_stage = ph_total_df.loc[count_label]
+    sig_day1 = plot.sig_locs_get(ph_stage)
+    sig_day2 = plot.sig_locs_get(ph_stage, index_level2val=1)
+
+    # get xdict to look up values
+    label_loc_dict = plot.get_xtick_dict(curr_total_ax)
+
+    # plot the significance lines
+    for plus_val, sig_dict in zip([0, 0.3], [sig_day1, sig_day2]):
+        plot.draw_sighlines(yval=ycoord_data_val,
+                            sig_list=sig_day1,
+                            label_loc_dict=label_loc_dict,
+                            minus_val=0.3,
+                            plus_val=plus_val,
+                            curr_ax=curr_total_ax)
+        
 # put the legend for the entire right column
 fig.legend(handles=ax_handles[:3], loc=(0.9, 0.8))
 
