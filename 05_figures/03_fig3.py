@@ -102,7 +102,7 @@ delta_mean_nrem = delta_mean_df.where(nrem_mask, other=np.nan
                                       ).loc[idx[:, :, der, :], band]
 
 # hack LL1 values wrong for now
-delta_mean_nrem.loc[idx["LL1", "LL_day2", :, :], :
+delta_mean_nrem.loc[idx["LL1", "LL_day2", :, :"2018-01-01 23:59:59"], :
     ] = delta_mean_nrem.loc[idx["LL1", "LL_day1", :, :], :]
 
 # Hourly Cumsum
@@ -115,7 +115,7 @@ delta_sum_hourly_cumsum = delta_sum_cumsum.groupby(level=[0, 1]
                                                               ).mean()
 delta_sum_hr_cs_fill = delta_sum_hourly_cumsum.fillna(method="ffill")
 # hack values for LL1 as still a problem
-delta_sum_hr_cs_fill.loc[idx["LL1", "LL_day2", :], :
+delta_sum_hr_cs_fill.loc[idx["LL1", "LL_day2", :"2018-01-01 23:59:59"], :
     ] = delta_sum_hr_cs_fill.loc[idx["LL1", "LL_day1", :], :]
 
 # normalise to max delta value at each animals baseline day
@@ -222,12 +222,12 @@ for hour in hours:
                            data=hour_df)
     pg.print_table(ph)
     ph_dict[hour] = ph
-ph_df = pd.concat(ph_dict)
+hourly_ph_df = pd.concat(ph_dict)
 
 hr_anova_file = hourly_test_dir / anova_csv
 hr_ps_file = hourly_test_dir / ph_csv
 test_rm.to_csv(hr_anova_file)
-ph_df.to_csv(hr_ps_file)
+hourly_ph_df.to_csv(hr_ps_file)
 
 # can't do repeated measures on swe since missing values
 swe_test = delta_mean_masked.reset_index()
@@ -252,12 +252,12 @@ for hour in hours[:-1]:
                            data=hour_df)
     pg.print_table(ph)
     ph_dict[hour] = ph
-ph_df = pd.concat(ph_dict)
+delta_mean_ph_df = pd.concat(ph_dict)
 
 swa_anova_file = swa_test_dir / anova_csv
 swa_ps_file = swa_test_dir / ph_csv
 swe_anova.to_csv(swa_anova_file)
-ph_df.to_csv(swa_ps_file)
+delta_mean_ph_df.to_csv(swa_ps_file)
 
     
 # 2. Does constant light change the amount or intensity of sleep?
@@ -289,12 +289,12 @@ for hour in hours:
                            data=curr_hour_df)
     pg.print_table(ph)
     ph_dict[hour] = ph
-ph_df = pd.concat(ph_dict)
+nrem_cs_ph_df = pd.concat(ph_dict)
 
 nrem_anova_file = nrem_test_dir / anova_csv
 nrem_ps_file = nrem_test_dir / ph_csv
 nrem_time_anova.to_csv(nrem_anova_file)
-ph_df.to_csv(nrem_ps_file)
+nrem_cs_ph_df.to_csv(nrem_ps_file)
 
 # same thing for max delta power
 max_swa = delta_sum_hr_cs_norm.groupby(level=[0, 1]).max()
@@ -322,12 +322,12 @@ for hour in hours[:-1]:
                            data=curr_hour_df)
     pg.print_table(ph)
     ph_dict[hour] = ph
-ph_df = pd.concat(ph_dict)
+delta_sum_ph_df = pd.concat(ph_dict)
 
 swe_anova_file = swe_test_dir / anova_csv
 swe_ps_file = swe_test_dir / ph_csv
 swa_anova.to_csv(swe_anova_file)
-ph_df.to_csv(swe_ps_file)
+delta_sum_ph_df.to_csv(swe_ps_file)
 
 ################################################################################
 # Step 4 plot
@@ -379,8 +379,13 @@ for curr_df, curr_ax in zip(hr_df_list, hourly_sleep_axis):
     dark_index = curr_day.loc["2018-01-01 12:00:00":"2018-01-02 00:00:00"].index
     alpha=0.1
     curr_ax.axvline("2018-01-01 12:00:00", color='k')
-    curr_ax.fill_between(dark_index, 500, 0,
-                                   facecolors='k', alpha=alpha)
+    curr_ax.fill_between(dark_index,
+                         500,
+                         0,
+                         facecolors='k',
+                         alpha=alpha)
+
+
 
 # tidy hourly prop
 hr_ax = hourly_sleep_axis[0]
@@ -400,6 +405,30 @@ swe_ylabel = "SWA, % of entire baseline day"
 swe_title = "SWA per hour"
 swe_ax.set(ylabel=swe_ylabel,
            title=swe_title)
+
+for curr_ph_df, curr_ax in zip([hourly_ph_df, delta_mean_ph_df],
+                               hourly_sleep_axis):
+    # stats lines
+    sig_line_ylevel = 0.9
+    ycoord_data_val = plot.sig_line_coord_get(curr_ax,
+                                              sig_line_ylevel)
+
+    # xvalues from test
+    sig_vals_hourly = plot.sig_locs_get(curr_ph_df)
+    plus_val = pd.Timedelta("30M")
+    xvals = [plot.get_xval_dates(x,
+                                 minus_val=plus_val,
+                                 plus_val=plus_val,
+                                 curr_ax=curr_ax) for x in sig_vals_hourly]
+
+    # plot each xval on the axis
+    for xval_pair in xvals:
+        xval_min = xval_pair[0]
+        xval_max = xval_pair[1]
+        curr_ax.axhline(ycoord_data_val,
+                        xmin=xval_min,
+                        xmax=xval_max)
+
 
 
 # Plot RHS cumulative sleep and delta
@@ -449,6 +478,21 @@ for day in days:
 # colour in dark
 top_ax.axvline("2018-01-01 12:00:00", color='k')
 top_ax.fill_between(dark_index, 15, 0, facecolor='k', alpha=alpha)
+
+# stats
+ycoord_data_val = plot.sig_line_coord_get(top_ax)
+nrem_cs_sigxvals = plot.sig_locs_get(nrem_cs_ph_df)
+nrem_xvals_trans = [plot.get_xval_dates(x,
+                         minus_val=plus_val,
+                         plus_val=plus_val,
+                         curr_ax=top_ax) for x in nrem_cs_sigxvals]
+
+for xval_pair in nrem_xvals_trans:
+    xval_min = xval_pair[0]
+    xval_max = xval_pair[1]
+    top_ax.axhline(ycoord_data_val,
+                    xmin=xval_min,
+                    xmax=xval_max)
 
 # bottom plot do delta
 for day in days:
