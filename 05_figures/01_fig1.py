@@ -33,10 +33,10 @@ dfs = [pd.read_csv(
     parse_dates=True,
     index_col=index_cols
 ) for x in file_names]
-col_names = ["PIR1", "PIR2", "PIR3", "PIR4", "LDR"]
+col_names = ["PIR1", "PIR2", "PIR3", "PIR4", "Lights0", "LDR"]
 for df in dfs:
     df.drop(
-        [df.columns[0], df.columns[-1], df.columns[-3], df.columns[-4]],
+        [df.columns[0], df.columns[-1], df.columns[-3]],
         axis=1,
         inplace=True
     )
@@ -97,11 +97,32 @@ fig, ax = aplot._actogram_plot_from_df(
     xlabel="Time, ZT",
 )
 fig.subplots_adjust(hspace=0)
-fig.set_size_inches(8.27, 11.69)
+a4 = [8.27, 11.69]
+quarter = [x/2 for x in a4]
+fig.set_size_inches(quarter[0], quarter[1])
+# Save actogram
 save_fig = fig_dir / "03_actogram.png"
 plt.savefig(save_fig, dpi=600)
+
+plt.close('all')
+
+
+# Plot as actogram
+fig, ax = aplot._actogram_plot_from_df(
+    new_lights,
+    animal_number=4,
+    drop_level=False,
+    fname=file_names[1],
+    day_label_size=10,
+    xlabel="Time, ZT",
+)
+fig.subplots_adjust(hspace=0)
+a4 = [8.27, 11.69]
+quarter = [x/2 for x in a4]
+fig.set_size_inches(quarter[0], quarter[1])
+save_fig = fig_dir / "05_actogram_lights.png"
+plt.savefig(save_fig, dpi=600, transparent=True)
 
 # Save actogram
 
 
-plt.close('all')
