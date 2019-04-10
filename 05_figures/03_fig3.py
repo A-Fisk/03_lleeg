@@ -23,17 +23,20 @@ import sleepPy.plots as plot
 INDEX_COLS = [0, 1, 2]
 idx = pd.IndexSlice
 BASE_FREQ = "4S"
-SAVEFIG = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/01_projects/"
-                       "01_thesisdata/03_lleeg/03_analysis_outputs/05_figures/"
-                       "03_fig3.png")
-
+SAVEFIG = pathlib.Path(
+    "/Users/angusfisk/Documents/01_PhD_files/01_projects/"
+    "01_thesisdata/03_lleeg/03_analysis_outputs/05_figures/"
+    "03_fig3.png"
+)
 
 # Step 1 Import files and tidy #################################################
 
 # Read all Spectral files into a df
-file_dir = pathlib.Path('/Users/angusfisk/Documents/01_PhD_files/01_projects/'
-                        '01_thesisdata/03_lleeg/01_data_files'
-                        '/07_clean_fft_files')
+file_dir = pathlib.Path(
+    '/Users/angusfisk/Documents/01_PhD_files/01_projects/'
+    '01_thesisdata/03_lleeg/01_data_files'
+    '/07_clean_fft_files'
+)
 file_names = sorted(file_dir.glob("*.csv"))
 df_list = [prep.read_file_to_df(x, index_col=INDEX_COLS) for x in file_names]
 df_names = [x.name for x in df_list]
@@ -42,12 +45,15 @@ spectrum_df = pd.concat(df_dict)
 spectrum_df = spectrum_df.loc[idx[:, :"LL_day2", :], :]
 
 # Read the stage df
-stage_dir = pathlib.Path('/Users/angusfisk/Documents/01_PhD_files/01_projects/'
-                        '01_thesisdata/03_lleeg/01_data_files'
-                        '/08_stage_csv')
+stage_dir = pathlib.Path(
+    '/Users/angusfisk/Documents/01_PhD_files/01_projects/'
+    '01_thesisdata/03_lleeg/01_data_files'
+    '/08_stage_csv'
+)
 stage_names = sorted(stage_dir.glob("*.csv"))
-stage_list = [prep.read_file_to_df(x, index_col=[0]) for x in
-              stage_names]
+stage_list = [
+    prep.read_file_to_df(x, index_col=[0]) for x in stage_names
+]
 stage_dfnames = [x.name for x in stage_list]
 stage_dict = dict(zip(stage_dfnames, stage_list))
 stage_df = pd.concat(stage_dict)
@@ -58,7 +64,12 @@ stage_df = stage_df.loc[:, :"LL_day2"]
 # Calculate the proportion of each hour in the given stages
 sleep_stages = ["NR", "N1", "R", "R1"]
 sleep_int_df = stage_df.isin(sleep_stages).astype(int)
-hourly_sleep_prop = sleep_int_df.groupby(level=0).resample("H", level=1).mean()
+hourly_sleep_prop = sleep_int_df.groupby(
+    level=0
+).resample(
+    "H",
+    level=1
+).mean()
 
 # Turn into mean and sem values in a df
 hourly_mean = hourly_sleep_prop.stack().groupby(level=[2, 1]).mean()
@@ -75,7 +86,12 @@ nrem_df = stage_df.isin(nrem_stages)
 nrem_cumulative = nrem_df.groupby(level=0).cumsum()
 
 # Turn into mean and sem values in a df
-nrem_c_hourly = nrem_cumulative.groupby(level=0).resample("H", level=1).mean()
+nrem_c_hourly = nrem_cumulative.groupby(
+    level=0
+).resample(
+    "H",
+    level=1
+).mean()
 nrem_means = nrem_c_hourly.stack().groupby(level=[2, 1]).mean()
 nrem_sems = nrem_c_hourly.stack().groupby(level=[2, 1]).sem()
 nrem_mean_df = pd.concat([nrem_means, nrem_sems], axis=1)
@@ -87,19 +103,33 @@ nrem_mean_df.columns = hourly_columns
 band = ["Delta"]
 range_to_sum = ("0.50Hz", "4.00Hz")
 der = "fro"
-delta_sum_df = prep.create_df_for_single_band(spectrum_df,
-                                              name_of_band=band,
-                                              range_to_sum=range_to_sum)
-delta_mean_df = prep.create_df_for_single_band(spectrum_df,
-                                               name_of_band=band,
-                                               range_to_sum=range_to_sum,
-                                               sum=False,
-                                               mean=True)
+delta_sum_df = prep.create_df_for_single_band(
+    spectrum_df,
+    name_of_band=band,
+    range_to_sum=range_to_sum
+)
+delta_mean_df = prep.create_df_for_single_band(
+    spectrum_df,
+    name_of_band=band,
+    range_to_sum=range_to_sum,
+    sum=False,
+    mean=True
+)
 nrem_mask = delta_sum_df["Stage"].isin(nrem_stages[:-1])
-delta_sum_nrem = delta_sum_df.where(nrem_mask, other=np.nan
-                                    ).loc[idx[:, :, der, :], band]
-delta_mean_nrem = delta_mean_df.where(nrem_mask, other=np.nan
-                                      ).loc[idx[:, :, der, :], band]
+delta_sum_nrem = delta_sum_df.where(
+    nrem_mask,
+    other=np.nan
+).loc[
+    idx[:, :, der, :],
+    band
+]
+delta_mean_nrem = delta_mean_df.where(
+    nrem_mask,
+    other=np.nan
+).loc[
+    idx[:, :, der, :],
+    band
+]
 
 # hack LL1 values wrong for now
 delta_mean_nrem.loc[idx["LL1", "LL_day2", :, :"2018-01-01 23:59:59"], :
@@ -108,11 +138,15 @@ delta_mean_nrem.loc[idx["LL1", "LL_day2", :, :"2018-01-01 23:59:59"], :
 # Hourly Cumsum
 # Get hourly cumulative values of sum delta power as a % of baseline max
 # Get mean hourly cumsum values with no Nans
-delta_sum_cumsum = delta_sum_nrem.groupby(level=[0, 1, 2]
-                                          ).cumsum()
-delta_sum_hourly_cumsum = delta_sum_cumsum.groupby(level=[0, 1]
-                                                   ).resample("H", level=3
-                                                              ).mean()
+delta_sum_cumsum = delta_sum_nrem.groupby(
+    level=[0, 1, 2]
+).cumsum()
+delta_sum_hourly_cumsum = delta_sum_cumsum.groupby(
+    level=[0, 1]
+).resample(
+    "H",
+    level=3
+).mean()
 delta_sum_hr_cs_fill = delta_sum_hourly_cumsum.fillna(method="ffill")
 # hack values for LL1 as still a problem
 delta_sum_hr_cs_fill.loc[idx["LL1", "LL_day2", :"2018-01-01 23:59:59"], :
@@ -124,8 +158,10 @@ def norm_to_max_baseline(data):
     animals = data.index.get_level_values(0).unique()
     data_list = []
     for animal in animals:
-        baseline = data.loc[idx[animal, days[0], "2018-01-01 23:00:00"],
-                   :].values[0][0]
+        baseline = data.loc[
+                   idx[animal, days[0], "2018-01-01 23:00:00"],
+                   :
+                   ].values[0][0]
         day_list = []
         for day in days:
             exp_day = data.loc[idx[animal, day, :, :], :]
@@ -140,17 +176,21 @@ delta_sum_hr_cs_norm = norm_to_max_baseline(delta_sum_hr_cs_fill)
 # Tidy mean and SEM values into a df
 delta_sum_hrmeans = delta_sum_hr_cs_norm.groupby(level=[1, 2]).mean()
 delta_sum_hrsems = delta_sum_hr_cs_norm.groupby(level=[1, 2]).sem()
-delta_sum_cs_df = pd.concat([delta_sum_hrmeans,
-                                delta_sum_hrsems], axis=1)
+delta_sum_cs_df = pd.concat(
+    [delta_sum_hrmeans, delta_sum_hrsems],
+    axis=1
+)
 delta_sum_cs_df.columns = hourly_columns
 
 ### Hourly Mean activity of delta power
 
 # get hourly mean and SEM of mean delta power
-delta_mean_hr = delta_mean_nrem.groupby(level=[0, 1]
-                                        ).resample("H",
-                                                   level=3
-                                                   ).mean()
+delta_mean_hr = delta_mean_nrem.groupby(
+    level=[0, 1]
+).resample(
+    "H",
+    level=3
+).mean()
 # normalise to baseline
 def norm_to_base(anim_df,
                  baseline_str: str="Baseline_-0"):
@@ -158,16 +198,21 @@ def norm_to_base(anim_df,
     normalise_values = base_values.mean()
     normalised_df = (anim_df / normalise_values) * 100
     return normalised_df
-delta_mean_hr_norm = delta_mean_hr.groupby(level=0
-                                           ).apply(norm_to_base)
+delta_mean_hr_norm = delta_mean_hr.groupby(
+    level=0
+).apply(norm_to_base)
 
 # check if more than 5 amount of NREM sleep per time bin
 # remove if less than 5 minutes of sleep per hour
 epochs_5min = pd.Timedelta("5M").seconds / 4
-bool_hr_mask = delta_mean_df.astype(bool
-                                   ).groupby(level=[0, 1]
-                                             ).resample("H", level=3
-                                                        ).sum() > epochs_5min
+bool_hr_mask = delta_mean_df.astype(
+    bool
+).groupby(
+    level=[0, 1]
+).resample(
+    "H",
+    level=3
+).sum() > epochs_5min
 delta_mean_masked = delta_mean_hr_norm.where(bool_hr_mask, other=np.nan)
 
 # tidy into a df
@@ -193,9 +238,11 @@ anim = stat_colnames[0]
 hour_col = stat_colnames[1]
 day_col = stat_colnames[2]
 hours = hourly_sleep_prop.index.get_level_values(-1).unique()
-save_test_dir = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/"
-                             "01_projects/01_thesisdata/03_lleeg/"
-                             "03_analysis_outputs/05_figures/00_csvs/03_fig3")
+save_test_dir = pathlib.Path(
+    "/Users/angusfisk/Documents/01_PhD_files/"
+    "01_projects/01_thesisdata/03_lleeg/"
+    "03_analysis_outputs/05_figures/00_csvs/03_fig3"
+)
 anova_csv = "01_anova.csv"
 ph_csv = "02_posthoc.csv"
 
@@ -206,10 +253,12 @@ long_df.columns = stat_colnames
 hourly_test_dir = save_test_dir / "hour_prop"
 
 # prop 2 way rm
-test_rm = pg.rm_anova2(dv=dep_var,
-                       within=[day_col, hour_col],
-                       subject=anim,
-                       data=long_df)
+test_rm = pg.rm_anova2(
+    dv=dep_var,
+    within=[day_col, hour_col],
+    subject=anim,
+    data=long_df
+)
 pg.print_table(test_rm)
 
 # prop post hoc
@@ -217,9 +266,11 @@ ph_dict = {}
 for hour in hours:
     print(hour)
     hour_df = long_df.query("%s == '%s'"%(hour_col, hour))
-    ph = pg.pairwise_tukey(dv=dep_var,
-                           between=day_col,
-                           data=hour_df)
+    ph = pg.pairwise_tukey(
+        dv=dep_var,
+        between=day_col,
+        data=hour_df
+    )
     pg.print_table(ph)
     ph_dict[hour] = ph
 hourly_ph_df = pd.concat(ph_dict)
@@ -237,9 +288,11 @@ swe_test.columns = stat_colnames
 swa_test_dir = save_test_dir / "SWA"
 
 swe_anova_df = swe_test.drop(anim, axis=1)
-swe_anova = pg.anova(dv=dep_var,
-                     between=[day_col, hour_col],
-                     data=swe_anova_df)
+swe_anova = pg.anova(
+    dv=dep_var,
+    between=[day_col, hour_col],
+    data=swe_anova_df
+)
 pg.print_table(swe_anova)
 
 # swe post hoc
@@ -247,9 +300,11 @@ ph_dict = {}
 for hour in hours[:-1]:
     print(hour)
     hour_df = swe_anova_df.query("%s == '%s'"%(hour_col, hour))
-    ph = pg.pairwise_tukey(dv=dep_var,
-                           between=day_col,
-                           data=hour_df)
+    ph = pg.pairwise_tukey(
+        dv=dep_var,
+        between=day_col,
+        data=hour_df
+    )
     pg.print_table(ph)
     ph_dict[hour] = ph
 delta_mean_ph_df = pd.concat(ph_dict)
@@ -271,9 +326,11 @@ test_df.drop(anim, axis=1, inplace=True)
 nrem_test_dir = save_test_dir / "NREM"
 
 # max nrem time anova
-nrem_time_anova = pg.anova(dv=dep_var,
-                           between=day_col,
-                           data=test_df)
+nrem_time_anova = pg.anova(
+    dv=dep_var,
+    between=day_col,
+    data=test_df
+)
 pg.print_table(nrem_time_anova)
 
 # post hoc test for each hour of cumulative nrem
@@ -284,9 +341,11 @@ ph_dict = {}
 for hour in hours:
     print(hour)
     curr_hour_df = test_df.query("%s == '%s'"%(hour_col, hour))
-    ph = pg.pairwise_tukey(dv=dep_var,
-                           between=day_col,
-                           data=curr_hour_df)
+    ph = pg.pairwise_tukey(
+        dv=dep_var,
+        between=day_col,
+        data=curr_hour_df
+    )
     pg.print_table(ph)
     ph_dict[hour] = ph
 nrem_cs_ph_df = pd.concat(ph_dict)
@@ -304,9 +363,11 @@ test_df.drop(anim, axis=1, inplace=True)
 
 swe_test_dir = save_test_dir / "SWE"
 
-swa_anova = pg.anova(dv=dep_var,
-                     between=day_col,
-                     data=test_df)
+swa_anova = pg.anova(
+    dv=dep_var,
+    between=day_col,
+    data=test_df
+)
 pg.print_table(swa_anova)
 
 # now do post hoc test
@@ -317,9 +378,11 @@ ph_dict = {}
 for hour in hours[:-1]:
     print(hour)
     curr_hour_df = test_df.query("%s == '%s'"%(day_col, hour))
-    ph = pg.pairwise_tukey(dv=dep_var,
-                           between=hour_col,
-                           data=curr_hour_df)
+    ph = pg.pairwise_tukey(
+        dv=dep_var,
+        between=hour_col,
+        data=curr_hour_df
+    )
     pg.print_table(ph)
     ph_dict[hour] = ph
 delta_sum_ph_df = pd.concat(ph_dict)
@@ -333,12 +396,16 @@ delta_sum_ph_df.to_csv(swe_ps_file)
 # Step 4 plot
 fig = plt.figure()
 
-xfmt = mdates.DateFormatter("%H:%M:%S")
+xfmt = mdates.DateFormatter("%H:%M")
 capsize = 5
 
 # Plot LHS sleep time course
-left_col = gs.GridSpec(nrows=2, ncols=1, figure=fig,
-                       right=0.45)
+left_col = gs.GridSpec(
+    nrows=2,
+    ncols=1,
+    figure=fig,
+    right=0.45
+)
 
 # plot the hourly sleep per day on that axis
 hourly_sleep_axis = [plt.subplot(x) for x in left_col]
@@ -355,11 +422,14 @@ for curr_df, curr_ax in zip(hr_df_list, hourly_sleep_axis):
         mean_data = curr_day["Mean"]
         sem_data = curr_day["SEM"]
         
-        curr_ax.errorbar(mean_data.index, mean_data.values,
-                         yerr=sem_data,
-                         marker='o',
-                         label=day,
-                         capsize=capsize)
+        curr_ax.errorbar(
+            mean_data.index,
+            mean_data.values,
+            yerr=sem_data,
+            marker='o',
+            label=day,
+            capsize=capsize
+        )
 
         # set the xlimits
         xmin = "2018-01-01 00:00:00"
@@ -367,23 +437,27 @@ for curr_df, curr_ax in zip(hr_df_list, hourly_sleep_axis):
         
         # set the xlabel
         xlabel = "Time of day, ZT hours"
-        curr_ax.set(xlim=[xmin, xmax],
-                    xlabel=xlabel)
+        curr_ax.set(
+            xlim=[xmin, xmax],
+            xlabel=xlabel
+        )
         
         # set times to look good
-        curr_ax.set_xticklabels(curr_ax.get_xticklabels(),
-                                rotation=30,
-                                ha='right')
+        curr_ax.set_xticklabels(
+            curr_ax.get_xticklabels(),
+            rotation=30,
+            ha='right'
+        )
         curr_ax.xaxis.set_major_formatter(xfmt)
         
-    dark_index = curr_day.loc["2018-01-01 12:00:00":"2018-01-02 00:00:00"].index
+    # dark_index = curr_day.loc["2018-01-01 12:00:00":"2018-01-02 00:00:00"].index
     alpha=0.1
     curr_ax.axvline("2018-01-01 12:00:00", color='k')
-    curr_ax.fill_between(dark_index,
-                         500,
-                         0,
-                         facecolors='k',
-                         alpha=alpha)
+    # curr_ax.fill_between(dark_index,
+    #                      500,
+    #                      0,
+    #                      facecolors='k',
+    #                      alpha=alpha)
 
 
 
@@ -394,48 +468,62 @@ prop_ylim = [0, 1]
 hr_ax.set_ylim(prop_ylim)
 hourly_ylabel = "Proportion of sleep per hour"
 hourly_title = "Proportion of sleep per hour in constant light"
-hr_ax.set(ylabel=hourly_ylabel,
-          title=hourly_title)
+hr_ax.set(
+    ylabel=hourly_ylabel,
+    title=hourly_title
+)
 
 # tidy swe
 swe_ax = hourly_sleep_axis[1]
 delt_ylim = [0, 200]
 swe_ax.set_ylim(delt_ylim)
-swe_ylabel = "SWA, % of entire baseline day"
+swe_ylabel = "SWA, % of baseline mean"
 swe_title = "SWA per hour"
-swe_ax.set(ylabel=swe_ylabel,
-           title=swe_title)
+swe_ax.set(
+    ylabel=swe_ylabel,
+    title=swe_title
+)
 
 for curr_ph_df, curr_ax in zip([hourly_ph_df, delta_mean_ph_df],
                                hourly_sleep_axis):
     # stats lines
     sig_line_ylevel = 0.9
-    ycoord_data_val = plot.sig_line_coord_get(curr_ax,
-                                              sig_line_ylevel)
+    ycoord_data_val = plot.sig_line_coord_get(
+        curr_ax,
+        sig_line_ylevel
+    )
 
     # xvalues from test
     sig_vals_hourly = plot.sig_locs_get(curr_ph_df)
     plus_val = pd.Timedelta("30M")
-    xvals = [plot.get_xval_dates(x,
-                                 minus_val=plus_val,
-                                 plus_val=plus_val,
-                                 curr_ax=curr_ax) for x in sig_vals_hourly]
+    xvals = [plot.get_xval_dates(
+        x,
+        minus_val=plus_val,
+        plus_val=plus_val,
+        curr_ax=curr_ax
+    ) for x in sig_vals_hourly]
 
     # plot each xval on the axis
     for xval_pair in xvals:
         xval_min = xval_pair[0]
         xval_max = xval_pair[1]
-        curr_ax.axhline(ycoord_data_val,
-                        xmin=xval_min,
-                        xmax=xval_max)
+        curr_ax.axhline(
+            ycoord_data_val,
+            xmin=xval_min,
+            xmax=xval_max
+        )
 
 
 
 # Plot RHS cumulative sleep and delta
 
 # create subplots on RHS
-right_col = gs.GridSpec(nrows=2, ncols=1, figure=fig,
-                        left=0.55)
+right_col = gs.GridSpec(
+    nrows=2,
+    ncols=1,
+    figure=fig,
+    left=0.55
+)
 
 top_ax = plt.subplot(right_col[0])
 bottom_ax = plt.subplot(right_col[1])
@@ -451,9 +539,14 @@ for day in days:
     sem_nrem = nrem_day["SEM"]
     
     # plot with error bars
-    top_ax.errorbar(mean_nrem.index, mean_nrem.values,
-                    yerr=sem_nrem, marker='o', label=day,
-                    capsize=capsize)
+    top_ax.errorbar(
+        mean_nrem.index,
+        mean_nrem.values,
+        yerr=sem_nrem,
+        marker='o',
+        label=day,
+        capsize=capsize
+    )
     
     # set xlimits
     # set ylabel
@@ -462,22 +555,26 @@ for day in days:
     nrem_title = "Cumuative NREM sleep in constant light"
     # set ylims
     top_ymin, top_ymax = 0, 12
-    top_ax.set(xlim=[xmin, xmax],
-               ylim=[top_ymin, top_ymax],
-               ylabel=nrem_ylabel,
-               title=nrem_title)
+    top_ax.set(
+        xlim=[xmin, xmax],
+        ylim=[top_ymin, top_ymax],
+        ylabel=nrem_ylabel,
+        title=nrem_title
+    )
     
     # set the legend
     top_ax.legend()
     
     # pretty times
-    top_ax.set_xticklabels(top_ax.get_xticklabels(),
-                           visible=False)
+    top_ax.set_xticklabels(
+        top_ax.get_xticklabels(),
+        visible=False
+    )
     top_ax.xaxis.set_major_formatter(xfmt)
 
 # colour in dark
 top_ax.axvline("2018-01-01 12:00:00", color='k')
-top_ax.fill_between(dark_index, 15, 0, facecolor='k', alpha=alpha)
+# top_ax.fill_between(dark_index, 15, 0, facecolor='k', alpha=alpha)
 
 # stats
 ycoord_data_val = plot.sig_line_coord_get(top_ax)
@@ -502,9 +599,14 @@ for day in days:
     mean_delta = delta_day["Mean"]
     sem_delta = delta_day["SEM"]
     
-    bottom_ax.errorbar(mean_delta.index, mean_delta.values,
-                       yerr=sem_delta, marker='o', label=day,
-                       capsize=capsize)
+    bottom_ax.errorbar(
+        mean_delta.index,
+        mean_delta.values,
+        yerr=sem_delta,
+        marker='o',
+        label=day,
+        capsize=capsize
+    )
     
     # set the limits
     # set the ylabel
@@ -514,20 +616,25 @@ for day in days:
     # set ylims
     bottom_ymin = 0
     bottom_ymax = 120
-    bottom_ax.set(xlim=[xmin, xmax],
-                  xlabel=xlabel,
-                  ylim=[bottom_ymin, bottom_ymax],
-                  ylabel=delta_ylabel,
-                  title=delta_title)
+    bottom_ax.set(
+        xlim=[xmin, xmax],
+        xlabel=xlabel,
+        ylim=[bottom_ymin, bottom_ymax],
+        ylabel=delta_ylabel,
+        title=delta_title
+    )
     
-    bottom_ax.set_xticklabels(bottom_ax.get_xticklabels(),
-                              rotation=30, ha='right')
+    bottom_ax.set_xticklabels(
+        bottom_ax.get_xticklabels(),
+        rotation=30,
+        ha='right'
+    )
     bottom_ax.xaxis.set_major_formatter(xfmt)
 
 delta_maxdouble = delta_sum_cs_df.max()[0] * 1.5
 bottom_ax.axvline("2018-01-01 12:00:00", color='k')
-bottom_ax.fill_between(dark_index, delta_maxdouble, 0,
-                       facecolor='k', alpha=alpha)
+# bottom_ax.fill_between(dark_index, delta_maxdouble, 0,
+#                        facecolor='k', alpha=alpha)
 fig.suptitle("Constant light increases sleep")
 
 fig.set_size_inches(11.69, 8.27)
