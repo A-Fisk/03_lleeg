@@ -23,6 +23,7 @@ import sleepPy.plots as plot
 INDEX_COLS = [0, 1, 2]
 idx = pd.IndexSlice
 BASE_FREQ = "4S"
+OFFSET = pd.Timedelta("30m")
 SAVEFIG = pathlib.Path(
     "/Users/angusfisk/Documents/01_PhD_files/01_projects/"
     "01_thesisdata/03_lleeg/03_analysis_outputs/05_figures/"
@@ -68,8 +69,9 @@ hourly_sleep_prop = sleep_int_df.groupby(
     level=0
 ).resample(
     "H",
-    level=1
-).mean()
+    level=1,
+    loffset=OFFSET
+).mean() * 100
 
 # Turn into mean and sem values in a df
 hourly_mean = hourly_sleep_prop.stack().groupby(level=[2, 1]).mean()
@@ -90,12 +92,14 @@ nrem_c_hourly = nrem_cumulative.groupby(
     level=0
 ).resample(
     "H",
-    level=1
+    level=1,
+    loffset=OFFSET
 ).mean()
 nrem_means = nrem_c_hourly.stack().groupby(level=[2, 1]).mean()
 nrem_sems = nrem_c_hourly.stack().groupby(level=[2, 1]).sem()
 nrem_mean_df = pd.concat([nrem_means, nrem_sems], axis=1)
 nrem_mean_df.columns = hourly_columns
+nrem_mean_df = nrem_mean_df.loc[idx[:, :"2018-01-01 23:59"], :]
 
 # Calculate Delta Power ########################################################
 
@@ -145,7 +149,8 @@ delta_sum_hourly_cumsum = delta_sum_cumsum.groupby(
     level=[0, 1]
 ).resample(
     "H",
-    level=3
+    level=3,
+    loffset=OFFSET
 ).mean()
 delta_sum_hr_cs_fill = delta_sum_hourly_cumsum.fillna(method="ffill")
 # hack values for LL1 as still a problem
@@ -159,7 +164,7 @@ def norm_to_max_baseline(data):
     data_list = []
     for animal in animals:
         baseline = data.loc[
-                   idx[animal, days[0], "2018-01-01 23:00:00"],
+                   idx[animal, days[0], "2018-01-01 23:30:00"],
                    :
                    ].values[0][0]
         day_list = []
@@ -181,6 +186,7 @@ delta_sum_cs_df = pd.concat(
     axis=1
 )
 delta_sum_cs_df.columns = hourly_columns
+delta_sum_cs_df = delta_sum_cs_df.loc[idx[:, :"2018-01-01 23:59"], :]
 
 ### Hourly Mean activity of delta power
 
@@ -189,7 +195,8 @@ delta_mean_hr = delta_mean_nrem.groupby(
     level=[0, 1]
 ).resample(
     "H",
-    level=3
+    level=3,
+    loffset=OFFSET,
 ).mean()
 # normalise to baseline
 def norm_to_base(anim_df,
@@ -211,7 +218,8 @@ bool_hr_mask = delta_mean_df.astype(
     level=[0, 1]
 ).resample(
     "H",
-    level=3
+    level=3,
+    loffset=OFFSET
 ).sum() > epochs_5min
 delta_mean_masked = delta_mean_hr_norm.where(bool_hr_mask, other=np.nan)
 
@@ -398,6 +406,9 @@ fig = plt.figure()
 
 xfmt = mdates.DateFormatter("%H:%M")
 capsize = 5
+panel_xpos = -0.25
+panel_ypos = 1.1
+panel_label_size = 12
 
 # Plot LHS sleep time course
 left_col = gs.GridSpec(
@@ -411,7 +422,10 @@ left_col = gs.GridSpec(
 hourly_sleep_axis = [plt.subplot(x) for x in left_col]
 
 days = hourly_sleep_df.index.get_level_values(0).unique()
-hr_df_list = [hourly_sleep_df, delta_mean_hr_df]
+hr_df_list = [
+    hourly_sleep_df.loc[idx[:, :"2018-01-01 23:59"], :],
+    delta_mean_hr_df.loc[idx[:, :"2018-01-01 23:59"], :]
+]
 
 for curr_df, curr_ax in zip(hr_df_list, hourly_sleep_axis):
     
@@ -452,7 +466,7 @@ for curr_df, curr_ax in zip(hr_df_list, hourly_sleep_axis):
         
     # dark_index = curr_day.loc["2018-01-01 12:00:00":"2018-01-02 00:00:00"].index
     alpha=0.1
-    curr_ax.axvline("2018-01-01 12:00:00", color='k')
+    curr_ax.axvline("2018-01-01 12:00:00", color='k', linestyle='--')
     # curr_ax.fill_between(dark_index,
     #                      500,
     #                      0,
@@ -463,55 +477,91 @@ for curr_df, curr_ax in zip(hr_df_list, hourly_sleep_axis):
 
 # tidy hourly prop
 hr_ax = hourly_sleep_axis[0]
-hr_ax.legend()
-prop_ylim = [0, 1]
+# hr_ax.legend()
+prop_ylim = [0, 100]
 hr_ax.set_ylim(prop_ylim)
-hourly_ylabel = "Proportion of sleep per hour"
-hourly_title = "Proportion of sleep per hour in constant light"
+hourly_ylabel = "Sleep % per hour, mean +/-SEM"
+hourly_title = "Amount of sleep per hour"
 hr_ax.set(
     ylabel=hourly_ylabel,
     title=hourly_title
 )
+hr_ax.set_xlabel("")
+hr_ax.set_xticklabels("")
+hr_ax.text(
+    panel_xpos,
+    panel_ypos,
+    "A",
+    fontsize=panel_label_size,
+    transform=hr_ax.transAxes
+)
 
 # tidy swe
 swe_ax = hourly_sleep_axis[1]
-delt_ylim = [0, 200]
+delt_ylim = [50, 200]
 swe_ax.set_ylim(delt_ylim)
-swe_ylabel = "SWA, % of baseline mean"
+swe_ylabel = "SWA % of baseline, mean +/- SEM"
 swe_title = "SWA per hour"
 swe_ax.set(
     ylabel=swe_ylabel,
     title=swe_title
 )
+swe_ax.text(
+    panel_xpos,
+    panel_ypos,
+    "B",
+    fontsize=panel_label_size,
+    transform=swe_ax.transAxes
+)
 
+sig_line_ylevel_day1 = 0.92
+sig_line_ylevel_day2 = 0.96
+plus_val = pd.Timedelta("30M")
+colours = ["C1", "C2"]
 for curr_ph_df, curr_ax in zip([hourly_ph_df, delta_mean_ph_df],
                                hourly_sleep_axis):
     # stats lines
-    sig_line_ylevel = 0.9
-    ycoord_data_val = plot.sig_line_coord_get(
+    ycoord_data_val_day1 = plot.sig_line_coord_get(
         curr_ax,
-        sig_line_ylevel
+        sig_line_ylevel_day1
     )
+    ycoord_data_val_day2 =  plot.sig_line_coord_get(
+        curr_ax,
+        sig_line_ylevel_day2
+    )
+    ycoords_days = [
+        ycoord_data_val_day1,
+        ycoord_data_val_day2
+    ]
 
     # xvalues from test
-    sig_vals_hourly = plot.sig_locs_get(curr_ph_df)
-    plus_val = pd.Timedelta("30M")
-    xvals = [plot.get_xval_dates(
-        x,
-        minus_val=plus_val,
-        plus_val=plus_val,
-        curr_ax=curr_ax
-    ) for x in sig_vals_hourly]
+    sig_vals_hourly_day1 = plot.sig_locs_get(curr_ph_df)
+    sig_vals_hourly_day2 = plot.sig_locs_get(curr_ph_df, index_level2val=1)
+    
+    # plot on axes
+    for day_no, sig_vals_hourly in enumerate(
+            [sig_vals_hourly_day1, sig_vals_hourly_day2]
+    ):
+        curr_colour = colours[day_no]
+        curr_ycoord = ycoords_days[day_no]
+        
+        xvals = [plot.get_xval_dates(
+            x,
+            minus_val=plus_val,
+            plus_val=plus_val,
+            curr_ax=curr_ax
+        ) for x in sig_vals_hourly]
 
-    # plot each xval on the axis
-    for xval_pair in xvals:
-        xval_min = xval_pair[0]
-        xval_max = xval_pair[1]
-        curr_ax.axhline(
-            ycoord_data_val,
-            xmin=xval_min,
-            xmax=xval_max
-        )
+        # plot each xval on the axis
+        for xval_pair in xvals:
+            xval_min = xval_pair[0]
+            xval_max = xval_pair[1]
+            curr_ax.axhline(
+                curr_ycoord,
+                xmin=xval_min,
+                xmax=xval_max,
+                color=curr_colour
+            )
 
 
 
@@ -550,9 +600,9 @@ for day in days:
     
     # set xlimits
     # set ylabel
-    nrem_ylabel = "Cumulative hours of NREM sleep"
+    nrem_ylabel = "Cumulative NREM sleep, hours, mean +/-SEM"
     # set the title
-    nrem_title = "Cumuative NREM sleep in constant light"
+    nrem_title = "Cumuative NREM sleep"
     # set ylims
     top_ymin, top_ymax = 0, 12
     top_ax.set(
@@ -562,9 +612,6 @@ for day in days:
         title=nrem_title
     )
     
-    # set the legend
-    top_ax.legend()
-    
     # pretty times
     top_ax.set_xticklabels(
         top_ax.get_xticklabels(),
@@ -572,12 +619,18 @@ for day in days:
     )
     top_ax.xaxis.set_major_formatter(xfmt)
 
+
+top_ax.legend(
+    loc=(1.02, 0.80),
+    fontsize=8,
+    markerscale=0.5
+)
 # colour in dark
-top_ax.axvline("2018-01-01 12:00:00", color='k')
+top_ax.axvline("2018-01-01 12:00:00", color='k', linestyle='--')
 # top_ax.fill_between(dark_index, 15, 0, facecolor='k', alpha=alpha)
 
 # stats
-ycoord_data_val = plot.sig_line_coord_get(top_ax)
+ycoord_data_val = plot.sig_line_coord_get(top_ax, 0.95)
 nrem_cs_sigxvals = plot.sig_locs_get(nrem_cs_ph_df)
 nrem_xvals_trans = [plot.get_xval_dates(x,
                          minus_val=plus_val,
@@ -588,8 +641,9 @@ for xval_pair in nrem_xvals_trans:
     xval_min = xval_pair[0]
     xval_max = xval_pair[1]
     top_ax.axhline(ycoord_data_val,
-                    xmin=xval_min,
-                    xmax=xval_max)
+                   xmin=xval_min,
+                   xmax=xval_max,
+                   color='k')
 
 # bottom plot do delta
 for day in days:
@@ -610,9 +664,9 @@ for day in days:
     
     # set the limits
     # set the ylabel
-    delta_ylabel = "Cumulative NREM Delta, % baseline "
+    delta_ylabel = "Cumulative SWE, % Baseline, mean +/-SEM"
     # set the title
-    delta_title = "Cumuative Delta power in constant light"
+    delta_title = "Cumulative SWE"
     # set ylims
     bottom_ymin = 0
     bottom_ymax = 120
@@ -632,10 +686,26 @@ for day in days:
     bottom_ax.xaxis.set_major_formatter(xfmt)
 
 delta_maxdouble = delta_sum_cs_df.max()[0] * 1.5
-bottom_ax.axvline("2018-01-01 12:00:00", color='k')
-# bottom_ax.fill_between(dark_index, delta_maxdouble, 0,
-#                        facecolor='k', alpha=alpha)
-fig.suptitle("Constant light increases sleep")
+bottom_ax.axvline("2018-01-01 12:00:00", color='k', linestyle='--')
+
+
+top_ax.text(
+    panel_xpos,
+    panel_ypos,
+    "C",
+    fontsize=panel_label_size,
+    transform=top_ax.transAxes
+)
+bottom_ax.text(
+    panel_xpos,
+    panel_ypos,
+    "D",
+    fontsize=panel_label_size,
+    transform=bottom_ax.transAxes
+)
+fig.suptitle(
+    "Constant light increases sleep"
+)
 
 fig.set_size_inches(11.69, 8.27)
 
