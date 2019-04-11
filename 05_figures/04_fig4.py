@@ -1,6 +1,6 @@
 # Figure 4 script
+# Comparing the spectrum in zt 12-18 in the first two days in LL
 
-# Comparing the spectrum in zt 12-24 for the first two days in LL
 # imports
 import pandas as pd
 import numpy as np
@@ -21,27 +21,31 @@ import sleepPy.plots as plot
 INDEX_COLS = [0, 1, 2]
 idx = pd.IndexSlice
 BASE_FREQ = "4S"
-SAVEFIG = pathlib.Path("/Users/angusfisk/Documents/01_PhD_files/01_projects/"
-                       "01_thesisdata/03_lleeg/03_analysis_outputs/05_figures/"
-                       "04_fig4.png")
+SAVEFIG = pathlib.Path(
+    "/Users/angusfisk/Documents/01_PhD_files/01_projects/"
+    "01_thesisdata/03_lleeg/03_analysis_outputs/05_figures/"
+    "04_fig4.png"
+)
 
 # Step 1 Import files and tidy
 # need both stage csvs and spectral
-file_dir = pathlib.Path('/Users/angusfisk/Documents/01_PhD_files/01_projects/'
-                        '01_thesisdata/03_lleeg/01_data_files'
-                        '/07_clean_fft_files')
+file_dir = pathlib.Path(
+    '/Users/angusfisk/Documents/01_PhD_files/01_projects/'
+    '01_thesisdata/03_lleeg/01_data_files'
+    '/07_clean_fft_files'
+)
 file_names = sorted(file_dir.glob("*.csv"))
 df_list = [prep.read_file_to_df(x, index_col=INDEX_COLS) for x in file_names]
-
-# turn into a dict
 df_names = [x.name for x in df_list]
 df_dict = dict(zip(df_names, df_list))
-
 spectrum_df = pd.concat(df_dict)
 spectrum_df = spectrum_df.sort_index()
 
 # Step 2 select just the right ZTs
-zt_slice = spectrum_df.loc[idx[:, :, :, "2018-01-01 12:00:00":], :]
+zt_slice = spectrum_df.loc[
+           idx[:, :, :, "2018-01-01 12:00:00":"2018-01-01 16:00:00"],
+           :
+           ]
 
 # Step 3 Select just the state of interest - wake and NREM
 wake_mask = zt_slice["Stage"] == "W"
