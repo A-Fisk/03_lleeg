@@ -43,7 +43,7 @@ df_list = [prep.read_file_to_df(x, index_col=INDEX_COLS) for x in file_names]
 df_names = [x.name for x in df_list]
 df_dict = dict(zip(df_names, df_list))
 spectrum_df = pd.concat(df_dict)
-spectrum_df = spectrum_df.loc[idx[:, :"LL_day2", :], :]
+spectrum_df = spectrum_df.loc[idx["LL2":, :"LL_day2", :], :]
 
 # Read the stage df
 stage_dir = pathlib.Path(
@@ -136,8 +136,8 @@ delta_mean_nrem = delta_mean_df.where(
 ]
 
 # hack LL1 values wrong for now
-delta_mean_nrem.loc[idx["LL1", "LL_day2", :, :"2018-01-01 23:59:59"], :
-    ] = delta_mean_nrem.loc[idx["LL1", "LL_day1", :, :], :]
+# delta_mean_nrem.loc[idx["LL1", "LL_day2", :, :"2018-01-01 23:59:59"], :
+#     ] = delta_mean_nrem.loc[idx["LL1", "LL_day1", :, :], :]
 
 # Hourly Cumsum
 # Get hourly cumulative values of sum delta power as a % of baseline max
@@ -154,8 +154,8 @@ delta_sum_hourly_cumsum = delta_sum_cumsum.groupby(
 ).mean()
 delta_sum_hr_cs_fill = delta_sum_hourly_cumsum.fillna(method="ffill")
 # hack values for LL1 as still a problem
-delta_sum_hr_cs_fill.loc[idx["LL1", "LL_day2", :"2018-01-01 23:59:59"], :
-    ] = delta_sum_hr_cs_fill.loc[idx["LL1", "LL_day1", :], :]
+# delta_sum_hr_cs_fill.loc[idx["LL1", "LL_day2", :"2018-01-01 23:59:59"], :
+#     ] = delta_sum_hr_cs_fill.loc[idx["LL1", "LL_day1", :], :]
 
 # normalise to max delta value at each animals baseline day
 def norm_to_max_baseline(data):
@@ -200,7 +200,7 @@ delta_mean_hr = delta_mean_nrem.groupby(
 ).mean()
 # normalise to baseline
 def norm_to_base(anim_df,
-                 baseline_str: str="Baseline_-0"):
+                 baseline_str: str="Baseline_0"):
     base_values = anim_df.loc[idx[:, baseline_str, :], :]
     normalise_values = base_values.mean()
     normalised_df = (anim_df / normalise_values) * 100
@@ -688,7 +688,6 @@ for day in days:
 delta_maxdouble = delta_sum_cs_df.max()[0] * 1.5
 bottom_ax.axvline("2018-01-01 12:00:00", color='k', linestyle='--')
 
-
 top_ax.text(
     panel_xpos,
     panel_ypos,
@@ -712,3 +711,5 @@ fig.set_size_inches(11.69, 8.27)
 plt.savefig(SAVEFIG, dpi=600)
 
 plt.close('all')
+
+
