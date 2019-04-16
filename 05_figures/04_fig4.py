@@ -5,6 +5,8 @@
 import pandas as pd
 import numpy as np
 import pingouin as pg
+import matplotlib
+matplotlib.use('macosx')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 import matplotlib.dates as mdates
@@ -39,7 +41,10 @@ file_dir = pathlib.Path(
     '/07_clean_fft_files'
 )
 file_names = sorted(file_dir.glob("*.csv"))
-df_list = [prep.read_file_to_df(x, index_col=INDEX_COLS) for x in file_names]
+df_list = [prep.read_file_to_df(x,
+                                parse_dates=True,
+                                index_col=INDEX_COLS)
+           for x in file_names]
 df_names = [x.name for x in df_list]
 df_dict = dict(zip(df_names, df_list))
 spectrum_df = pd.concat(df_dict)
@@ -54,19 +59,13 @@ stage_dir = pathlib.Path(
 )
 stage_names = sorted(stage_dir.glob("*.csv"))
 stage_list = [
-    prep.read_file_to_df(x, index_col=[0]) for x in stage_names
-]
+    prep.read_file_to_df(x,
+                         parse_dates=True,
+                         index_col=[0]) for x in stage_names ]
 stage_dfnames = [x.name for x in stage_list]
 stage_dict = dict(zip(stage_dfnames, stage_list))
 stage_df = pd.concat(stage_dict)
 stage_df = stage_df.loc[:, :"LL_day2"]
-
-
-# spectrum_df.loc[
-#     idx["LL1", "LL_day2", :, :], :
-# ] = spectrum_df.loc[
-#     idx["LL1", "LL_day2", :, :], :
-# ] * 10
 
 # Step 2 select just the right ZTs
 der = 'fro'
@@ -74,8 +73,6 @@ zt_slice = spectrum_df.loc[
            idx["LL2":, :, der, "2018-01-01 12:00:00":"2018-01-01 16:00:00"],
            :
            ]
-
-
 
 # Step 3 Select just the state of interest - wake and NREM
 nrem_mask = zt_slice["Stage"] == "NR"
@@ -100,24 +97,38 @@ nr_episodes_df = nr_int_df.groupby(
     reset_level=False,
     remove_lights=False
 )
+wake_stages = ["W", "W1"]
+wake_int_df = stage_df.isin(wake_stages).astype(int)
+
+# Use actiPy episode finder to get lengths and times of episodes
+wake_episodes_df = wake_int_df.groupby(
+    level=0
+).apply(
+    ep.episode_find_df,
+    drop_level=True,
+    reset_level=False,
+    remove_lights=False
+)
 
 # Get the number of episodes using sum resample
-nr_ep_mask = (nr_episodes_df > 1).astype(bool)
+nr_ep_mask = (wake_episodes_df > 1).astype(bool)
 nr_ep_sum = nr_ep_mask.groupby(
     level=0
 ).resample(
     "H",
-    level=1
+    level=1,
+    loffset=OFFSET
 ).sum()
 long_sum = nr_ep_sum.stack().reset_index()
 
 # get the mean duration using mean
-nr_ep_mean = nr_episodes_df.groupby(
+nr_ep_mean = wake_episodes_df.groupby(
     level=0
 ).resample(
     "H",
-    level=1
-).mean()
+    level=1,
+    loffset=OFFSET
+).mean() / 60
 long_mean = nr_ep_mean.stack().reset_index()
 long_frag = long_sum.copy()
 frag_cols = [
@@ -152,8 +163,88 @@ swa_nrem = swa_df.where(          # select only artefact free NREM
     band
 ]
 
-swa_nrem.loc[idx["LL1", "LL_day2", :, :"2018-01-01 23:59:59"], :
-    ] = swa_nrem.loc[idx["LL1", "LL_day1", :, :], :] # Hack LL1 values for now
+# Try to calculate change within episodes
+
+# need to get the SWA at start and end of each episode
+# starting with NREM episodes
+# reshape so easier to deal with
+nr_ep_long = pd.DataFrame(
+    nr_episodes_df.stack(
+    ).reorder_levels(
+        [0, 2, 1]
+    ).sort_index()
+)
+nr_ep_long = nr_ep_long.loc["LL3":]
+ep_index_names = ["Anim", "Day", "Time"]
+nr_ep_long.index.rename(ep_index_names, inplace=True)
+swa_nrem_tidy = swa_nrem.copy()
+swa_nrem_tidy.index = swa_nrem_tidy.index.droplevel(2)
+swa_nrem_tidy.index.rename(ep_index_names, inplace=True)
+
+# create new dfs to copy data into
+nr_ep_swa_delta = nr_ep_long.astype(int).copy()
+nr_ep_temp = nr_ep_long.astype(int).copy()
+
+# shift the swa by the episode lengths to get the swa at the end of each ep
+ep_lengths = sorted(nr_ep_long.iloc[:, 0].unique().astype(int))
+shift_lengths = [x/4 for x in ep_lengths]
+shifted_dfs = [swa_nrem_tidy.shift(-(int(x)-1)) for x in shift_lengths]
+shift_dict = dict(zip(ep_lengths, shifted_dfs))
+
+# for each episode length, grab end from right df
+end_swa_list = []
+for curr_ep_length in ep_lengths:
+    nr_eps_mask = nr_ep_temp == curr_ep_length
+    nr_eps_single = nr_ep_temp[nr_eps_mask].dropna()
+    curr_shift_df = shift_dict[curr_ep_length]
+    nr_eps_single.loc[:, "end_swa"] = curr_shift_df
+    print(nr_eps_single.head())
+    end_swa_list.append(nr_eps_single)
+nr_ep_swa_end = pd.concat(end_swa_list).sort_index()
+
+# grab the starting swa value
+nr_ep_swa_start = swa_nrem_tidy.shift(-1)
+
+# add start and end values and calculate delta
+nr_ep_swa_delta.loc[:, "start_swa"]  = nr_ep_swa_start.iloc[:, 0]
+nr_ep_swa_delta.loc[:, "end_swa"] = nr_ep_swa_end.iloc[:, 1]
+swa_delta_values = ((nr_ep_swa_delta.loc[:, "start_swa"] -\
+                     nr_ep_swa_delta.loc[:, "end_swa"]) / \
+                    nr_ep_swa_delta.loc[:, "start_swa"]) * 100
+
+nr_ep_swa_delta.loc[:, "delta_swa"] = swa_delta_values
+
+def delta_swa(swa_df,
+              episode_index,
+              episode_secs,
+              secs_offset=4):
+    start_swa = swa_df.loc[
+        idx["%s"%(episode_index[0]),
+            "%s"%(episode_index[1]),
+            "%s"%(episode_index[2] + pd.Timedelta("%sS"%(secs_offset)))],
+        :
+    ]
+    end_swa = swa_df.loc[
+        idx["%s"%(episode_index[0]),
+            "%s"%(episode_index[1]),
+            "%s"%(episode_index[2] + pd.Timedelta("%sS"%(episode_secs - 4)))],
+        :
+    ]
+    delta_swa = start_swa.values[0] - end_swa.values[0]
+    
+    return delta_swa[0]
+
+swa_delta_df = nr_ep_long.copy()
+
+for index, secs in nr_ep_long.iterrows():
+    curr_delta = delta_swa(
+        swa_nrem_tidy,
+        index,
+        secs.values[0]
+    )
+    swa_delta_df[index] = curr_delta
+
+# swa_nrem = swa_nrem.loc[idx["LL2", :, :, :], :] # Hack LL1 values for now
 
 swa_hr = swa_nrem.groupby(        # Resample to hourly
     level=[0, 1]
@@ -175,10 +266,11 @@ swa_hr_norm = swa_hr.groupby(
     norm_base_mean
 )
 
-swa_hr_shift = swa_hr_norm.shift(-1)
-swa_hr_delta = ((swa_hr_shift - swa_hr_norm))# / swa_hr_norm) * 100
-swa_hr_delta_mean = swa_hr_delta.groupby(level=[1, 2]).mean()
-swa_hr_delta_long = swa_hr_delta_mean.reset_index()
+swa_hr_shift_plus = swa_hr_norm.shift(-1)
+swa_hr_shift_minus = swa_hr_norm.shift(1)
+swa_hr_delta = ((swa_hr_shift_plus - swa_hr_shift_minus))# / swa_hr_norm) * 100
+# swa_hr_delta_mean = swa_hr_delta.groupby(level=[1, 2]).mean()
+swa_hr_delta_long = swa_hr_delta.reset_index()
 
 # Calculate NREM / hour
 nrem_stages = ["NR", "N1"]
@@ -190,10 +282,10 @@ nr_hourly_perc = nrem_int_df.groupby(
     level=1,
     loffset=OFFSET
 ).mean() * 100
-nr_hourly_perc_mean = nr_hourly_perc.groupby(level=[1]).mean()
-nr_hourly_perc_long = nr_hourly_perc_mean.stack(
+# nr_hourly_perc_mean = nr_hourly_perc.groupby(level=[1]).mean()
+nr_hourly_perc_long = nr_hourly_perc.stack(
 ).reorder_levels(
-    [1, 0]
+    [0, 2, 1]
 ).sort_index(
 ).reset_index()
 
@@ -207,10 +299,10 @@ wake_hourly_perc = wake_int_df.groupby(
     level=1,
     loffset=OFFSET
 ).mean() * 100
-wake_hourly_perc_mean = wake_hourly_perc.groupby(level=[1]).mean()
-wake_hourly_perc_long = wake_hourly_perc_mean.stack(
+# wake_hourly_perc_mean = wake_hourly_perc.groupby(level=[1]).mean()
+wake_hourly_perc_long = wake_hourly_perc.stack(
 ).reorder_levels(
-    [1, 0]
+    [0, 2, 1]
 ).sort_index(
 ).reset_index()
 
@@ -318,11 +410,7 @@ labelsize = 7.5
 sem = 68
 
 # extra plot features constants
-xticks = np.linspace(0, 80, 21)
-xticklabels = long_nrem[freq].unique()[2::4]
-ylabel = "% change from Baseline day"
-hline_kwargs = {"linestyle": "--",
-                "color": "k"}
+xfmt = mdates.DateFormatter("%H:%M")
 
 # Initialise figure
 fig = plt.figure()
@@ -349,6 +437,27 @@ sns.pointplot(
     errwidth=errwidth
 )
 curr_ax_spec.set_yscale("log")
+spec_leg = curr_ax_spec.legend()
+spec_leg.remove()
+# set x axis to be frequency
+spec_xticks = np.linspace(1, 81, 21)
+spec_xticklabels = long_nrem[freq].unique()[1::4]
+curr_ax_spec.set_xticks(spec_xticks)
+curr_ax_spec.set_xticklabels(
+    spec_xticklabels,
+    rotation=30,
+    ha='right',
+    size=labelsize
+)
+curr_ax_spec.xaxis.grid()
+plt.setp(curr_ax_spec.collections, facecolors='none')
+fig.text(
+    0.5,
+    1.1,
+    "NREM power spectra",
+    transform = curr_ax_spec.transAxes,
+    ha='center'
+)
 
 
 frag_grid = gs.GridSpec(
@@ -361,6 +470,7 @@ frag_grid = gs.GridSpec(
 )
 frag_axes = [plt.subplot(x) for x in frag_grid]
 
+frag_xticklabels = long_frag[time_col][::3].dt.strftime("%H:%M")
 for type, curr_ax_frag in zip(frag_data_types, frag_axes):
     
     sns.pointplot(
@@ -373,14 +483,39 @@ for type, curr_ax_frag in zip(frag_data_types, frag_axes):
         ci=sem,
         errwidth=errwidth
     )
- 
+    frag_leg = curr_ax_frag.legend()
+    frag_leg.remove()
+    curr_ax_frag.set_xticklabels("")
+    curr_ax_frag.axvline(
+        11.5,
+        linestyle="--",
+        color='k'
+    )
+curr_ax_frag.set_xticklabels(
+    frag_xticklabels,
+    rotation=30,
+    ha='right',
+    size=labelsize
+)
+fig.text(
+    0.5,
+    1.1,
+    "Wake Episodes",
+    transform=frag_axes[0].transAxes,
+    ha='center'
+)
+frag_axes[1].set_ylabel("Mean Duration, minutes")
+    
+# fig.autofmt_xdate()
+
 # reg constants
 swa_delta_col = swa_diss_df.columns[-2]
 nr_col = swa_diss_df.columns[-1]
 wake_col = swa_accum_df.columns[-1]
 anim_col = swa_diss_df.columns[0]
-day_col = swa_diss_df.columns[1]
+day_col_reg = swa_diss_df.columns[1]
 time_col = swa_diss_df.columns[2]
+ylabel_reg = "Delta SWA, percent change -1 to +1 hr"
 
 reg_grid = gs.GridSpec(
     nrows=1,
@@ -390,26 +525,33 @@ reg_grid = gs.GridSpec(
 )
 reg_axes = [plt.subplot(x) for x in reg_grid]
 
-curr_ax_reg = reg_axes[0]
+nr_wake_cols = [nr_col, wake_col]
+reg_ax_dict = dict(zip(nr_wake_cols, reg_axes))
+swa_data = dict(zip(nr_wake_cols, [swa_diss_df, swa_accum_df]))
+for data_type in nr_wake_cols:
+    curr_ax_reg = reg_ax_dict[data_type]
+    curr_data_reg = swa_data[data_type]
+    sns.scatterplot(
+        x=data_type,
+        y=swa_delta_col,
+        hue=day_col_reg,
+        data=curr_data_reg,
+        ax=curr_ax_reg
+    )
+    curr_ax_reg.legend().remove()
+    curr_ax_reg.set_ylabel(ylabel_reg)
+    curr_ax_reg.set_xlabel("%s, percent per hour"%(data_type))
 
-sns.scatterplot(
-    x=nr_col,
-    y=swa_delta_col,
-    hue=anim_col,
-    data=swa_diss_df,
-    ax=curr_ax_reg
+# figure legend
+frag_axes[0].legend(
+    loc=(1.02, 0.8),
+    fontsize=8,
+    markerscale=0.5
 )
-curr_ax_reg.legend().remove()
 
-sns.scatterplot(
-    x=wake_col,
-    y=swa_delta_col,
-    hue=anim_col,
-    data=swa_accum_df,
-    ax=reg_axes[1]
-)
-
+fig.suptitle("Differences during ZT 12-17")
 
 fig.set_size_inches(11.69, 8.27)
+plt.savefig(SAVEFIG, dpi=600)
 
 plt.close('all')
