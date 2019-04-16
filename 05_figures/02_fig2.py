@@ -56,8 +56,8 @@ delta_df = prep.create_df_for_single_band(
     spectrum_df,
     name_of_band=band,
     range_to_sum=range_to_sum,
-    sum=True,
-    mean=False,
+    sum=False,
+    mean=True,
 )
 
 ######### Step 3 Count sleep, NREM, REM and wake
@@ -69,25 +69,35 @@ wake_stages = ["W", "W1", "M"]
 unstacked_stages = stage_df.unstack(level=0)
 unstacked_stages.name = "stages"
 
+names = {
+    "total_name": "Total",
+    "light_name": "Subjective_Light",
+    "dark_name": "Subjective_Dark",
+}
+
 total_sleep = prep.lightdark_df(
     unstacked_stages,
     stage_list=sleep_stages,
-    data_list=False
+    data_list=False,
+    **names
 )
 nrem_sleep = prep.lightdark_df(
     unstacked_stages,
     stage_list=nrem_stages,
-    data_list=False
+    data_list=False,
+    **names
 )
 rem_sleep = prep.lightdark_df(
     unstacked_stages,
     stage_list=rem_stages,
-    data_list=False
+    data_list=False,
+    **names
 )
 wake_count = prep.lightdark_df(
     unstacked_stages,
     stage_list=wake_stages,
-    data_list=False
+    data_list=False,
+    **names
 )
 
 totals_dict = {
@@ -180,7 +190,7 @@ days = spectrum_df.index.get_level_values(1).unique()
 ders = spectrum_df.index.get_level_values(2).unique()
 label_col = -1
 max_delta = delta_df.max()[0]
-swe_ylabel = "Slow Wave Energy, µV2"
+swe_ylabel = "Slow Wave Activity, µV2"
 hypnogram_panels = ["A", "B", "C"]
 hyp_pan_dict = dict(zip(days, hypnogram_panels))
 panel_label_size = 10
@@ -226,7 +236,7 @@ for day, curr_ax in zip(days, day_axes):
     
     min_time = '2018-01-01 00:00:00'
     max_time = '2018-01-02 00:00:00'
-    max_ylim = 60000
+    max_ylim = 4000
     curr_ax.set(
         xlim=[min_time, max_time],
         ylim=[0, max_ylim],
@@ -282,7 +292,7 @@ day_col = plotting_columns[0]
 anim = plotting_columns[1]
 lights = plotting_columns[2]
 sum_data = plotting_columns[3]
-order = ["Total", "Light", "Dark"]
+order = names.values()
 sig_col = "p-tukey"
 sig_val = 0.05
 sig_line_ylevel_day1 = 0.9
