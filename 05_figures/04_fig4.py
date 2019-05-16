@@ -93,8 +93,6 @@ long_nrem["SEM"] = nrem_mean_sem.iloc[:, 3:].stack().values
 # Only code NR episodes (NR and NR1)
 nr_stages = ["NR", "N1"]
 nr_int_df = stage_df.isin(nr_stages).astype(int)
-
-# Use actiPy episode finder to get lengths and times of episodes
 nr_episodes_df = nr_int_df.groupby(
     level=0
 ).apply(
@@ -103,10 +101,11 @@ nr_episodes_df = nr_int_df.groupby(
     reset_level=False,
     remove_lights=False
 )
-wake_stages = ["W", "W1"]
-wake_int_df = stage_df.isin(wake_stages).astype(int)
 
 # Use actiPy episode finder to get lengths and times of episodes
+# same for wake
+wake_stages = ["W", "W1"]
+wake_int_df = stage_df.isin(wake_stages).astype(int)
 wake_episodes_df = wake_int_df.groupby(
     level=0
 ).apply(
@@ -135,8 +134,9 @@ nr_ep_mean = nr_episodes_df.groupby(
     level=1,
     loffset=OFFSET
 ).mean() / 60
-nr_ep_mean = nr_ep_mean.loc[idx[:, "2018-01-01 00:30":"2018-01-01 23:30"], :]
-long_mean = nr_ep_mean.stack().reset_index()
+nr_ep_mean_slice = nr_ep_mean.loc[
+                   idx[:, "2018-01-01 00:30":"2018-01-01 23:30"], :]
+long_mean = nr_ep_mean_slice.stack().reset_index()
 long_frag = long_sum.copy()
 frag_cols = [
     "Animal",
@@ -222,6 +222,15 @@ mean_rm = pg.rm_anova2(
 pg.print_table(mean_rm)
 mean_name = save_test_dir / "03_mean_rm"
 mean_rm.to_csv(mean_name)
+
+mean_ph = aprep.tukey_pairwise_ph(
+    count_stats_df,
+    hour_col=time_col,
+    dep_var=mean_col,
+    protocol_col=day_col
+)
+mean_ph_name = save_test_dir / "03_mean_ph.csv"
+mean_ph.to_csv(mean_ph_name)
 
 
 # Plotting #####################################################################
@@ -406,6 +415,47 @@ plot.draw_sighlines(
     minus_val=0.5,
     plus_val=0.5,
     curr_ax=count_axis,
+    color="C1"
+)
+
+
+# same thing for mean a
+
+mean_axis = frag_axes[1]
+
+# Get y level
+ycoord_day1 = plot.sig_line_coord_get(
+    mean_axis,
+    ylevel_day1
+)
+ycoord_day2 = plot.sig_line_coord_get(
+    mean_axis,
+    ylevel_day2
+)
+
+# get xvals where sig
+sig_day1 = [x.strftime("%H:%M") for x in plot.sig_locs_get(mean_ph)]
+sig_day2 = [x.strftime("%H:%M")
+            for x in plot.sig_locs_get(mean_ph,index_level2val=1)]
+
+label_loc_dict = plot.get_xtick_dict(mean_axis)
+
+plot.draw_sighlines(
+    yval=ycoord_day1,
+    sig_list=sig_day1,
+    label_loc_dict=label_loc_dict,
+    minus_val=0.5,
+    plus_val=0.5,
+    curr_ax=mean_axis,
+    color="C1"
+)
+plot.draw_sighlines(
+    yval=ycoord_day2,
+    sig_list=sig_day2,
+    label_loc_dict=label_loc_dict,
+    minus_val=0.5,
+    plus_val=0.5,
+    curr_ax=mean_axis,
     color="C1"
 )
 
