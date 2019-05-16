@@ -326,17 +326,17 @@ delta_mean_ph_df.to_csv(swa_ps_file)
 # 2. Does constant light change the amount or intensity of sleep?
 # One way anova on the max values of time of NREM sleep and Delta power
 # Post hoc - either linear regression or tukeys post hoc for each hour?
-max_nrem_time = nrem_c_hourly.groupby(level=0).max()
+max_nrem_time = ((nrem_c_hourly.groupby(level=0).max() * 4)/60)/60
 test_df = max_nrem_time.stack().reset_index()
 test_df.columns = [stat_colnames[x] for x in (0, 2, 3)]
-test_df.drop(anim, axis=1, inplace=True)
 
 nrem_test_dir = save_test_dir / "NREM"
 
 # max nrem time anova
-nrem_time_anova = pg.anova(
+nrem_time_anova = pg.rm_anova(
     dv=dep_var,
-    between=day_col,
+    within=day_col,
+    subject=anim,
     data=test_df
 )
 pg.print_table(nrem_time_anova)
@@ -367,13 +367,13 @@ nrem_cs_ph_df.to_csv(nrem_ps_file)
 max_swa = delta_sum_hr_cs_norm.groupby(level=[0, 1]).max()
 test_df = max_swa.reset_index()
 test_df.columns = [stat_colnames[x] for x in (0, 2, 3)]
-test_df.drop(anim, axis=1, inplace=True)
 
 swe_test_dir = save_test_dir / "SWE"
 
-swa_anova = pg.anova(
+swa_anova = pg.rm_anova(
     dv=dep_var,
-    between=day_col,
+    within=day_col,
+    subject=anim,
     data=test_df
 )
 pg.print_table(swa_anova)
@@ -509,7 +509,7 @@ swe_ax.set(
 swe_ax.text(
     panel_xpos,
     panel_ypos,
-    "B",
+    "C",
     fontsize=panel_label_size,
     transform=swe_ax.transAxes
 )
@@ -691,7 +691,7 @@ bottom_ax.axvline("2018-01-01 12:00:00", color='k', linestyle='--')
 top_ax.text(
     panel_xpos,
     panel_ypos,
-    "C",
+    "B",
     fontsize=panel_label_size,
     transform=top_ax.transAxes
 )
