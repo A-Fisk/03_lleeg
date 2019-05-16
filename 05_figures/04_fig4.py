@@ -124,7 +124,7 @@ nr_ep_sum = nr_ep_mask.groupby(
     "H",
     level=1,
     loffset=OFFSET
-).sum()
+).sum().loc[idx[:, "2018-01-01 00:30":"2018-01-01 23:30"], :]
 long_sum = nr_ep_sum.stack().reset_index()
 
 # get the mean duration using mean
@@ -135,6 +135,7 @@ nr_ep_mean = nr_episodes_df.groupby(
     level=1,
     loffset=OFFSET
 ).mean() / 60
+nr_ep_mean = nr_ep_mean.loc[idx[:, "2018-01-01 00:30":"2018-01-01 23:30"], :]
 long_mean = nr_ep_mean.stack().reset_index()
 long_frag = long_sum.copy()
 frag_cols = [
@@ -248,6 +249,10 @@ sem = 68
 
 # extra plot features constants
 xfmt = mdates.DateFormatter("%H:%M")
+panel_xpos = -0.1
+panel_ypos = 1.1
+
+
 
 # Initialise figure
 fig = plt.figure()
@@ -277,16 +282,6 @@ for curr_day in days:
         alpha=0.5
     )
     
-# sns.pointplot(
-#     x=freq,
-#     y=power,
-#     hue=lights,
-#     data=long_nrem,
-#     ax=curr_ax_spec,
-#     capsize=capsize,
-#     ci=sem,
-#     errwidth=errwidth
-# )
 curr_ax_spec.set_yscale("log")
 spec_leg = curr_ax_spec.legend()
 spec_leg.remove()
@@ -300,15 +295,20 @@ curr_ax_spec.set_xticklabels(
     ha='right',
     size=labelsize
 )
-# curr_ax_spec.xaxis.grid()
-# curr_ax_spec.yaxis.grid()
-# plt.setp(curr_ax_spec.collections, facecolors='none')
 fig.text(
     0.5,
-    1.1,
+    1.05,
     "NREM power spectra",
     transform = curr_ax_spec.transAxes,
     ha='center'
+)
+# add in panel position
+fig.text(
+    panel_xpos,
+    1.05,
+    "A",
+    transform=curr_ax_spec.transAxes,
+    ha='right'
 )
 
 
@@ -357,9 +357,16 @@ fig.text(
 )
 frag_axes[1].set_ylabel("Mean Duration, minutes")
 
+for curr_ax, curr_panel in zip(frag_axes, ["B", "C"]):
+    fig.text(
+        panel_xpos,
+        panel_ypos,
+        curr_panel,
+        transform=curr_ax.transAxes,
+        ha='right'
+    )
+    
 # add stats to count levels
-
-# adjust y to accommodate
 ylevel_day1 = 0.9
 ylevel_day2 = 0.95
 
