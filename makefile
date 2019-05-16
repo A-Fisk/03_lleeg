@@ -46,6 +46,16 @@ waveform:
 	cd /Users/angusfisk/Documents/01_PhD_files/01_projects/01_thesisdata/02_circdis/02_analysis_files/02_activity/04_mean_waveform; \
 	python *.py
 
+figures:
+	@echo "activating env"
+	@echo "creating files"
+	source activate sleepPy_environment; \
+	cd /Users/angusfisk/Documents/01_PhD_files/01_projects/01_thesisdata/03_lleeg/02_analysis_files/05_figures; \
+	ls *.py; \
+	python 01_fig1.py; \
+	python 02_fig2.py; \
+	python 03_fig3.py; \
+	python 04_fig4.py; \
 
 
 
