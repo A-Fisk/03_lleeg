@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import pingouin as pg
 import matplotlib
-matplotlib.use('macosx')
+#matplotlib.use('macosx')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 import matplotlib.dates as mdates
@@ -71,8 +71,8 @@ stage_df = stage_df.loc[:, :"LL_day2"]
 # Step 2 select just the right ZTs
 der = 'fro'
 zt_slice = spectrum_df.loc[
-           idx["LL2":, :, der, "2018-01-01 12:00:00":"2018-01-01 16:00:00"],
-           :
+           idx["LL2":, :, der, "2018-01-01 12:00:00":"2018-01-01 17:00:00"],
+           : # removes LL2
            ]
 
 # Step 3 Select just the state of interest - wake and NREM
@@ -87,11 +87,15 @@ long_nrem_cols = [cols[x] for x in [1, 3, 4]]
 long_nrem.columns = long_nrem_cols
 long_nrem["SEM"] = nrem_mean_sem.iloc[:, 3:].stack().values
 
+# log transform to normalise for stats
+# log_nrem = long_nrem.copy()
+# log_nrem_vals = np.log10(log_nrem.iloc[:, -2:])
+# log_nrem.iloc[:, -2:] = log_nrem_vals
 
 # Step 4 Calculate episodes of activity per hour
 
 # Only code NR episodes (NR and NR1)
-nr_stages = ["NR", "N1"]
+nr_stages = ["NR", "N1", "M"]
 nr_int_df = stage_df.isin(nr_stages).astype(int)
 nr_episodes_df = nr_int_df.groupby(
     level=0
@@ -158,7 +162,7 @@ save_test_dir = pathlib.Path(
 # Q1 Does power of the spectrum change between days
 # Repeated two way ANOVA of Power ~ Freq*days | anim
 
-stats_spec_df = nrem_mean.copy()
+stats_spec_df = np.log10(nrem_mean)
 stats_spec_df.index = stats_spec_df.index.droplevel(2)
 stats_spec_df = stats_spec_df.stack().reset_index()
 
@@ -176,7 +180,7 @@ spec_rm = pg.mixed_anova(
 )
 pg.print_table(spec_rm)
 
-spec_name = save_test_dir / "01_spec_anova"
+spec_name = save_test_dir / "01_spec_anova.csv"
 spec_rm.to_csv(spec_name)
 
 # Q2 Does the Number of episodes change between day?
@@ -198,7 +202,7 @@ count_rm = pg.rm_anova2(
 )
 pg.print_table(count_rm)
 
-count_rm_name = save_test_dir / "02_count_rm"
+count_rm_name = save_test_dir / "02_count_rm.csv"
 count_rm.to_csv(count_rm_name)
 
 count_ph = aprep.tukey_pairwise_ph(
@@ -207,7 +211,7 @@ count_ph = aprep.tukey_pairwise_ph(
     dep_var=count_col,
     protocol_col=day_col
 )
-count_ph_name = save_test_dir / "02_count_ph"
+count_ph_name = save_test_dir / "02_count_ph.csv"
 count_ph.to_csv(count_ph_name)
 
 # Q3 Does duration of episodes change between day?
@@ -220,7 +224,7 @@ mean_rm = pg.rm_anova2(
     data=count_stats_df
 )
 pg.print_table(mean_rm)
-mean_name = save_test_dir / "03_mean_rm"
+mean_name = save_test_dir / "03_mean_rm.csv"
 mean_rm.to_csv(mean_name)
 
 mean_ph = aprep.tukey_pairwise_ph(
@@ -304,6 +308,12 @@ curr_ax_spec.set_xticklabels(
     ha='right',
     size=labelsize
 )
+curr_ax_spec.set_ylabel(
+    "EEG power density, µV$^2$/0.25Hz +/-SEM"
+)
+curr_ax_spec.set_xlabel(
+        "Frequency"
+)
 fig.text(
     0.5,
     1.05,
@@ -364,7 +374,13 @@ fig.text(
     transform=frag_axes[0].transAxes,
     ha='center'
 )
-frag_axes[1].set_ylabel("Mean Duration, minutes")
+frag_labelsize = 10
+frag_axes[0].set_ylabel("Number of NREM episodes per hour, \n No. +/-SEM",
+        fontsize=frag_labelsize)
+frag_axes[0].set_xlabel("")
+frag_axes[1].set_ylabel("Mean duration of NREM episodes per hour, \n minutes, +/-SEM",
+        fontsize=frag_labelsize)
+frag_axes[1].set_xlabel("Time of day, CT hours")
 
 for curr_ax, curr_panel in zip(frag_axes, ["B", "C"]):
     fig.text(
@@ -380,7 +396,7 @@ ylevel_day1 = 0.9
 ylevel_day2 = 0.95
 
 count_axis = frag_axes[0]
-count_axis.set_ylim([0, 40])
+# count_axis.set_ylim([0, 20])
 
 # Get y level
 ycoord_day1 = plot.sig_line_coord_get(
@@ -420,44 +436,44 @@ plot.draw_sighlines(
 
 
 # same thing for mean a
-
-mean_axis = frag_axes[1]
-
-# Get y level
-ycoord_day1 = plot.sig_line_coord_get(
-    mean_axis,
-    ylevel_day1
-)
-ycoord_day2 = plot.sig_line_coord_get(
-    mean_axis,
-    ylevel_day2
-)
-
-# get xvals where sig
-sig_day1 = [x.strftime("%H:%M") for x in plot.sig_locs_get(mean_ph)]
-sig_day2 = [x.strftime("%H:%M")
-            for x in plot.sig_locs_get(mean_ph,index_level2val=1)]
-
-label_loc_dict = plot.get_xtick_dict(mean_axis)
-
-plot.draw_sighlines(
-    yval=ycoord_day1,
-    sig_list=sig_day1,
-    label_loc_dict=label_loc_dict,
-    minus_val=0.5,
-    plus_val=0.5,
-    curr_ax=mean_axis,
-    color="C1"
-)
-plot.draw_sighlines(
-    yval=ycoord_day2,
-    sig_list=sig_day2,
-    label_loc_dict=label_loc_dict,
-    minus_val=0.5,
-    plus_val=0.5,
-    curr_ax=mean_axis,
-    color="C1"
-)
+#
+# mean_axis = frag_axes[1]
+#
+# # Get y level
+# ycoord_day1 = plot.sig_line_coord_get(
+#     mean_axis,
+#     ylevel_day1
+# )
+# ycoord_day2 = plot.sig_line_coord_get(
+#     mean_axis,
+#     ylevel_day2
+# )
+#
+# # get xvals where sig
+# sig_day1 = [x.strftime("%H:%M") for x in plot.sig_locs_get(mean_ph)]
+# sig_day2 = [x.strftime("%H:%M")
+#             for x in plot.sig_locs_get(mean_ph,index_level2val=1)]
+#
+# label_loc_dict = plot.get_xtick_dict(mean_axis)
+#
+# plot.draw_sighlines(
+#     yval=ycoord_day1,
+#     sig_list=sig_day1,
+#     label_loc_dict=label_loc_dict,
+#     minus_val=0.5,
+#     plus_val=0.5,
+#     curr_ax=mean_axis,
+#     color="C1"
+# )
+# plot.draw_sighlines(
+#     yval=ycoord_day2,
+#     sig_list=sig_day2,
+#     label_loc_dict=label_loc_dict,
+#     minus_val=0.5,
+#     plus_val=0.5,
+#     curr_ax=mean_axis,
+#     color="C1"
+# )
 
 # figure legend
 frag_axes[0].legend(

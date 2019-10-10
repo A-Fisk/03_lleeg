@@ -450,7 +450,7 @@ for curr_df, curr_ax in zip(hr_df_list, hourly_sleep_axis):
         xmax = "2018-01-02 00:00:00"
         
         # set the xlabel
-        xlabel = "Time of day, ZT hours"
+        xlabel = "Time of day, CT hours"
         curr_ax.set(
             xlim=[xmin, xmax],
             xlabel=xlabel
@@ -602,7 +602,7 @@ for day in days:
     # set ylabel
     nrem_ylabel = "Cumulative NREM sleep, hours, mean +/-SEM"
     # set the title
-    nrem_title = "Cumuative NREM sleep"
+    nrem_title = "Cumulative NREM sleep"
     # set ylims
     top_ymin, top_ymax = 0, 12
     top_ax.set(

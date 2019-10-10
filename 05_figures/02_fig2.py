@@ -75,30 +75,30 @@ names = {
     "dark_name": "Subjective_Dark",
 }
 
-total_sleep = prep.lightdark_df(
+total_sleep = ((prep.lightdark_df(
     unstacked_stages,
     stage_list=sleep_stages,
     data_list=False,
     **names
-)
-nrem_sleep = prep.lightdark_df(
+)*4)/60)/60
+nrem_sleep = ((prep.lightdark_df(
     unstacked_stages,
     stage_list=nrem_stages,
     data_list=False,
     **names
-)
-rem_sleep = prep.lightdark_df(
+)*4)/60)/60
+rem_sleep = ((prep.lightdark_df(
     unstacked_stages,
     stage_list=rem_stages,
     data_list=False,
     **names
-)
-wake_count = prep.lightdark_df(
+)*4)/60)/60
+wake_count = ((prep.lightdark_df(
     unstacked_stages,
     stage_list=wake_stages,
     data_list=False,
     **names
-)
+)*4)/60)/60
 
 totals_dict = {
     "Sleep": total_sleep,
@@ -190,7 +190,7 @@ days = spectrum_df.index.get_level_values(1).unique()
 ders = spectrum_df.index.get_level_values(2).unique()
 label_col = -1
 max_delta = delta_df.max()[0]
-swe_ylabel = "Slow Wave Activity, µV2"
+swe_ylabel = "Slow Wave Activity, µV$^2$/0.25Hz"
 hypnogram_panels = ["A", "B", "C"]
 hyp_pan_dict = dict(zip(days, hypnogram_panels))
 panel_label_size = 10
@@ -242,7 +242,7 @@ for day, curr_ax in zip(days, day_axes):
         ylim=[0, max_ylim],
         title=day,
     )
-    xfmt = mdates.DateFormatter("%H:%M:%S")
+    xfmt = mdates.DateFormatter("%H:%M")
     curr_ax.xaxis.set_major_formatter(xfmt)
     curr_ax.text(
         panel_xpos,
@@ -309,7 +309,7 @@ for count_label, curr_total_ax in zip(totals_dict.keys(), totals_axes):
     count_data = totals_dict[count_label]
     # tidy up the data
     # change units to s
-    converted_count = ((count_data * 4) / 60) / 60
+    converted_count = count_data #((count_data * 4) / 60) / 60
     totals_plotting_data = converted_count.stack().reset_index()
     totals_plotting_data.columns = plotting_columns
     
